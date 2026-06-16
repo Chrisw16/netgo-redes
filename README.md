@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NetGo Redes
 
-## Getting Started
+Sistema de gestão da **infraestrutura de rede / planta externa (OSP)** de um
+provedor de internet: mapeamento de postes, cabos de fibra, CTOs, CEOs, POPs,
+controle de fusões/emendas e caminho óptico ponta-a-ponta.
 
-First, run the development server:
+## Arquitetura
+
+Dois bancos, papéis distintos:
+
+| Banco | Acesso | O que tem |
+|---|---|---|
+| **SGP** (`dbconect`) | somente leitura (`src/lib/db.ts`) | CTO/portas/ocupação, ONU, sinal, status, cliente, contrato |
+| **Próprio** (PostGIS) | leitura/escrita (`src/lib/appdb.ts`) | postes, cabos, CEOs, fusões e **coordenada limpa das CTOs** (`cto_geo`) |
+
+O SGP nunca é alterado. A planta física vive no banco próprio, amarrada à CTO
+pelo id do splitter (`netcore_splitter.id` ⇄ `cto_geo.splitter_id`).
+
+> Projeto independente do **netgo-bi** (BI transversal do provedor). O netgo-bi
+> (pasta irmã) serve só como referência de queries/schema do SGP.
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · Tailwind · PostgreSQL + PostGIS · `pg`.
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # preencher senhas (SGP + banco próprio)
+
+# criar o schema da planta no banco próprio (uma vez):
+psql "$APP_DATABASE_URL" -f db/schema.sql
+
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Schema da planta
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Ver [`db/schema.sql`](db/schema.sql): `cto_geo`, `poste`, `cabo`, `cabo_poste`,
+`ceo`, `fusao`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Roadmap (rascunho)
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Fundação** ✅ scaffold, conexões, schema PostGIS.
+2. **Georreferenciamento de CTOs** — colocar no mapa as ~73% sem coordenada.
+3. **Mapa da planta** — postes, cabos e CTOs em camadas.
+4. **Fusões / caminho óptico** — grafo de continuidade fibra-a-fibra.
+5. **Painel** — totais, ocupação, capacidade por região.
