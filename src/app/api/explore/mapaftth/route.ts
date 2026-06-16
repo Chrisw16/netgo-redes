@@ -95,5 +95,49 @@ export async function GET(req: Request) {
      ORDER BY cab.id LIMIT 10`,
   );
 
+  // ⭐ Análise de GANHO: das CTOs reais, quantas o mapaftth georreferencia que o
+  // map_ll ainda não cobre. (proxy de "tem map_ll" = map_ll não-vazio ~ 608≈609.)
+  out.ganhoExato = await probe(
+    `WITH ns AS (
+       SELECT lower(trim(ident)) AS chave, (TRIM(COALESCE(map_ll,'')) <> '') AS tem_mapll
+       FROM netcore_splitter WHERE active AND NOT is_deleted AND ports > 0
+     ),
+     mc AS (
+       SELECT DISTINCT lower(trim(COALESCE(NULLIF(TRIM(s.nome), ''), i.nome))) AS chave
+       FROM mapaftth_splitter s
+       JOIN mapaftth_item i ON i.id = s.ponto_id
+       JOIN mapaftth_itemcoordenada ic ON ic.item_id = i.id
+       JOIN mapaftth_coordenada c ON c.id = ic.coordenada_id
+     )
+     SELECT COUNT(*)::int total,
+            COUNT(*) FILTER (WHERE tem_mapll)::int com_mapll,
+            COUNT(*) FILTER (WHERE mc.chave IS NOT NULL)::int casa_mapaftth,
+            COUNT(*) FILTER (WHERE NOT tem_mapll AND mc.chave IS NOT NULL)::int ganho_novo,
+            COUNT(*) FILTER (WHERE NOT tem_mapll AND mc.chave IS NULL)::int restante_manual
+     FROM ns LEFT JOIN mc ON mc.chave = ns.chave`,
+  );
+
+  // Mesma análise, porém casando por nome NORMALIZADO (só letras/números).
+  out.ganhoNormalizado = await probe(
+    `WITH ns AS (
+       SELECT lower(regexp_replace(ident, '[^a-zA-Z0-9]', '', 'g')) AS chave,
+              (TRIM(COALESCE(map_ll,'')) <> '') AS tem_mapll
+       FROM netcore_splitter WHERE active AND NOT is_deleted AND ports > 0
+     ),
+     mc AS (
+       SELECT DISTINCT lower(regexp_replace(
+                COALESCE(NULLIF(TRIM(s.nome), ''), i.nome), '[^a-zA-Z0-9]', '', 'g')) AS chave
+       FROM mapaftth_splitter s
+       JOIN mapaftth_item i ON i.id = s.ponto_id
+       JOIN mapaftth_itemcoordenada ic ON ic.item_id = i.id
+       JOIN mapaftth_coordenada c ON c.id = ic.coordenada_id
+     )
+     SELECT COUNT(*)::int total,
+            COUNT(*) FILTER (WHERE mc.chave IS NOT NULL)::int casa_mapaftth,
+            COUNT(*) FILTER (WHERE NOT tem_mapll AND mc.chave IS NOT NULL)::int ganho_novo,
+            COUNT(*) FILTER (WHERE NOT tem_mapll AND mc.chave IS NULL)::int restante_manual
+     FROM ns LEFT JOIN mc ON mc.chave = ns.chave`,
+  );
+
   return NextResponse.json(out);
 }
