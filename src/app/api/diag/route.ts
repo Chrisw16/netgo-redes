@@ -45,6 +45,12 @@ export async function GET() {
     out.appDb = { ok: false, erro: "APP_DATABASE_URL não definida" };
   } else {
     try {
+      const ver = await appQuery<{ versao: string }>(`SELECT version() AS versao`);
+      const disp = await appQuery<{ disponivel: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM pg_available_extensions WHERE name = 'postgis'
+         ) AS disponivel`,
+      );
       const ext = await appQuery<{ postgis: string }>(
         `SELECT extversion AS postgis FROM pg_extension WHERE extname = 'postgis'`,
       );
@@ -56,7 +62,9 @@ export async function GET() {
       );
       out.appDb = {
         ok: true,
-        postgis: ext[0]?.postgis ?? "NÃO instalado",
+        serverVersion: ver[0]?.versao ?? null,
+        postgisDisponivelNaImagem: disp[0]?.disponivel ?? false, // false = imagem errada
+        postgis: ext[0]?.postgis ?? "NÃO criado",
         tabelas: tabelas.map((t) => t.tabela),
         schemaCompleto: tabelas.length === 6,
       };
