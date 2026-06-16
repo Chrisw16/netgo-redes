@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamicImport from "next/dynamic";
-import type { Cto } from "@/lib/cto";
+import type { Poste } from "@/lib/poste";
 
 const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
   ssr: false,
@@ -15,9 +15,10 @@ const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
 
 type Form = {
   codigo: string;
-  tipoSplitter: string;
-  capacidade: string;
-  endereco: string;
+  tipo: string;
+  alturaM: string;
+  dono: string;
+  concessionaria: string;
   observacao: string;
   lat: number | null;
   lng: number | null;
@@ -25,16 +26,19 @@ type Form = {
 
 const FORM_VAZIO: Form = {
   codigo: "",
-  tipoSplitter: "",
-  capacidade: "",
-  endereco: "",
+  tipo: "",
+  alturaM: "",
+  dono: "proprio",
+  concessionaria: "",
   observacao: "",
   lat: null,
   lng: null,
 };
 
-export default function CtosPage() {
-  const [ctos, setCtos] = useState<Cto[]>([]);
+const COR = "#f59e0b"; // âmbar para postes
+
+export default function PostesPage() {
+  const [postes, setPostes] = useState<Poste[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -46,10 +50,10 @@ export default function CtosPage() {
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const r = await fetch("/api/cto", { cache: "no-store" });
+      const r = await fetch("/api/poste", { cache: "no-store" });
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || "falha ao listar");
-      setCtos(j.ctos as Cto[]);
+      setPostes(j.postes as Poste[]);
       setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -70,7 +74,7 @@ export default function CtosPage() {
     [mode, form.lat, form.lng],
   );
 
-  function novaCto() {
+  function novo() {
     setMode("new");
     setSelectedId(null);
     setForm(FORM_VAZIO);
@@ -84,21 +88,22 @@ export default function CtosPage() {
 
   const selecionar = useCallback(
     (id: number) => {
-      const c = ctos.find((x) => x.id === id);
-      if (!c) return;
+      const p = postes.find((x) => x.id === id);
+      if (!p) return;
       setMode("edit");
       setSelectedId(id);
       setForm({
-        codigo: c.codigo,
-        tipoSplitter: c.tipoSplitter ?? "",
-        capacidade: c.capacidade != null ? String(c.capacidade) : "",
-        endereco: c.endereco ?? "",
-        observacao: c.observacao ?? "",
-        lat: c.lat,
-        lng: c.lng,
+        codigo: p.codigo ?? "",
+        tipo: p.tipo ?? "",
+        alturaM: p.alturaM != null ? String(p.alturaM) : "",
+        dono: p.dono || "proprio",
+        concessionaria: p.concessionaria ?? "",
+        observacao: p.observacao ?? "",
+        lat: p.lat,
+        lng: p.lng,
       });
     },
-    [ctos],
+    [postes],
   );
 
   function aoClicarMapa(lat: number, lng: number) {
@@ -112,23 +117,20 @@ export default function CtosPage() {
   }
 
   async function salvar() {
-    if (!form.codigo.trim()) {
-      setErro("Informe o código da CTO");
-      return;
-    }
     setSalvando(true);
     setErro(null);
     const payload = {
-      codigo: form.codigo.trim(),
-      tipoSplitter: form.tipoSplitter || null,
-      capacidade: form.capacidade || null,
-      endereco: form.endereco || null,
+      codigo: form.codigo || null,
+      tipo: form.tipo || null,
+      alturaM: form.alturaM || null,
+      dono: form.dono,
+      concessionaria: form.dono === "alugado" ? form.concessionaria || null : null,
       observacao: form.observacao || null,
       lat: form.lat,
       lng: form.lng,
     };
     try {
-      const url = mode === "edit" && selectedId ? `/api/cto/${selectedId}` : "/api/cto";
+      const url = mode === "edit" && selectedId ? `/api/poste/${selectedId}` : "/api/poste";
       const r = await fetch(url, {
         method: mode === "edit" ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,7 +139,7 @@ export default function CtosPage() {
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || "falha ao salvar");
       await carregar();
-      if (j.cto) selecionar(j.cto.id);
+      if (j.poste) selecionar(j.poste.id);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -147,10 +149,10 @@ export default function CtosPage() {
 
   async function excluir() {
     if (!selectedId) return;
-    if (!confirm("Excluir esta CTO?")) return;
+    if (!confirm("Excluir este poste?")) return;
     setSalvando(true);
     try {
-      const r = await fetch(`/api/cto/${selectedId}`, { method: "DELETE" });
+      const r = await fetch(`/api/poste/${selectedId}`, { method: "DELETE" });
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || "falha ao excluir");
       cancelar();
@@ -162,19 +164,20 @@ export default function CtosPage() {
     }
   }
 
-  const semCoord = ctos.filter((c) => c.lat == null).length;
+  const semCoord = postes.filter((p) => p.lat == null).length;
+  const alugados = postes.filter((p) => p.dono === "alugado").length;
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <div>
-          <h1 className="text-lg font-semibold">CTOs</h1>
+          <h1 className="text-lg font-semibold">Postes</h1>
           <p className="text-xs text-[var(--muted)]">
-            {ctos.length} CTOs · {ctos.length - semCoord} no mapa · {semCoord} sem coordenada
+            {postes.length} postes · {postes.length - semCoord} no mapa · {alugados} alugados
           </p>
         </div>
-        <button onClick={novaCto} className="btn-primary">
-          + Nova CTO
+        <button onClick={novo} className="btn-primary">
+          + Novo poste
         </button>
       </header>
 
@@ -189,24 +192,24 @@ export default function CtosPage() {
           {mode === "idle" ? (
             <div className="space-y-3">
               <p className="text-sm text-[var(--muted)]">
-                Clique em <strong className="text-[var(--text)]">+ Nova CTO</strong> (ou direto no
+                Clique em <strong className="text-[var(--text)]">+ Novo poste</strong> (ou direto no
                 mapa) para cadastrar. Clique num ponto para editar.
               </p>
               <ul className="divide-y divide-[var(--border)]/60 text-sm">
                 {carregando ? (
                   <li className="py-2 text-[var(--muted)]">Carregando…</li>
-                ) : ctos.length === 0 ? (
-                  <li className="py-2 text-[var(--muted)]">Nenhuma CTO ainda.</li>
+                ) : postes.length === 0 ? (
+                  <li className="py-2 text-[var(--muted)]">Nenhum poste ainda.</li>
                 ) : (
-                  ctos.map((c) => (
-                    <li key={c.id}>
+                  postes.map((p) => (
+                    <li key={p.id}>
                       <button
-                        onClick={() => selecionar(c.id)}
+                        onClick={() => selecionar(p.id)}
                         className="flex w-full items-center justify-between py-2 text-left hover:text-[var(--accent)]"
                       >
-                        <span className="font-medium">{c.codigo}</span>
+                        <span className="font-medium">{p.codigo || "(sem código)"}</span>
                         <span className="text-xs text-[var(--muted)]">
-                          {c.lat == null ? "sem mapa" : "no mapa"}
+                          {p.dono === "alugado" ? "alugado" : "próprio"}
                         </span>
                       </button>
                     </li>
@@ -222,53 +225,71 @@ export default function CtosPage() {
                 salvar();
               }}
             >
-              <h2 className="font-medium">{mode === "edit" ? "Editar CTO" : "Nova CTO"}</h2>
+              <h2 className="font-medium">{mode === "edit" ? "Editar poste" : "Novo poste"}</h2>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Código *</span>
+                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Código</span>
                 <input
                   value={form.codigo}
                   onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
                   className="input"
-                  placeholder="ex.: NTL1-R1-01"
+                  placeholder="ex.: P-0451"
                   autoFocus
                 />
               </label>
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Splitter</span>
+                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Tipo</span>
                   <select
-                    value={form.tipoSplitter}
-                    onChange={(e) => setForm((f) => ({ ...f, tipoSplitter: e.target.value }))}
+                    value={form.tipo}
+                    onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
                     className="input"
                   >
                     <option value="">—</option>
-                    <option value="1:8">1:8</option>
-                    <option value="1:16">1:16</option>
-                    <option value="1:32">1:32</option>
+                    <option value="concreto">Concreto</option>
+                    <option value="madeira">Madeira</option>
+                    <option value="metalico">Metálico</option>
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Portas</span>
+                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Altura (m)</span>
                   <input
                     type="number"
-                    value={form.capacidade}
-                    onChange={(e) => setForm((f) => ({ ...f, capacidade: e.target.value }))}
+                    step="0.5"
+                    value={form.alturaM}
+                    onChange={(e) => setForm((f) => ({ ...f, alturaM: e.target.value }))}
                     className="input"
-                    placeholder="ex.: 16"
+                    placeholder="ex.: 9"
                   />
                 </label>
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Endereço</span>
-                <input
-                  value={form.endereco}
-                  onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))}
+                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Propriedade</span>
+                <select
+                  value={form.dono}
+                  onChange={(e) => setForm((f) => ({ ...f, dono: e.target.value }))}
                   className="input"
-                />
+                >
+                  <option value="proprio">Próprio</option>
+                  <option value="alugado">Alugado</option>
+                </select>
               </label>
+
+              {form.dono === "alugado" && (
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">
+                    Concessionária
+                  </span>
+                  <input
+                    value={form.concessionaria}
+                    onChange={(e) => setForm((f) => ({ ...f, concessionaria: e.target.value }))}
+                    className="input"
+                    placeholder="ex.: Cosern / Neoenergia"
+                  />
+                </label>
+              )}
 
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Observação</span>
@@ -312,8 +333,8 @@ export default function CtosPage() {
 
         <main className="min-w-0 flex-1">
           <PlantaMap
-            camadas={[{ chave: "cto", pontos: ctos, cor: "#16a34a" }]}
-            selecionado={selectedId ? { camada: "cto", id: selectedId } : null}
+            camadas={[{ chave: "poste", pontos: postes, cor: COR }]}
+            selecionado={selectedId ? { camada: "poste", id: selectedId } : null}
             pending={pending}
             onMapClick={aoClicarMapa}
             onSelect={(_, id) => selecionar(id)}

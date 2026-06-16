@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamicImport from "next/dynamic";
 import Link from "next/link";
 import type { Cto } from "@/lib/cto";
+import type { Poste } from "@/lib/poste";
 
 const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
   ssr: false,
@@ -14,23 +15,34 @@ const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
   ),
 });
 
-// Camadas da visão geral. Conforme os módulos forem criados, ligamos cada uma.
-const CAMADAS_FUTURAS = ["Postes", "Cabos", "CEOs", "POPs"];
+const COR_CTO = "#16a34a";
+const COR_POSTE = "#f59e0b";
+
+const CAMADAS_FUTURAS = ["Cabos", "CEOs", "POPs"];
 
 export default function PlantaOverview() {
   const [ctos, setCtos] = useState<Cto[]>([]);
+  const [postes, setPostes] = useState<Poste[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const [showCtos, setShowCtos] = useState(true);
+  const [showPostes, setShowPostes] = useState(true);
+  const [sel, setSel] = useState<{ camada: string; id: number } | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const r = await fetch("/api/cto", { cache: "no-store" });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.erro || "falha ao carregar");
-      setCtos(j.ctos as Cto[]);
+      const [rc, rp] = await Promise.all([
+        fetch("/api/cto", { cache: "no-store" }),
+        fetch("/api/poste", { cache: "no-store" }),
+      ]);
+      const jc = await rc.json();
+      const jp = await rp.json();
+      if (!jc.ok) throw new Error(jc.erro || "falha ao carregar CTOs");
+      if (!jp.ok) throw new Error(jp.erro || "falha ao carregar postes");
+      setCtos(jc.ctos as Cto[]);
+      setPostes(jp.postes as Poste[]);
       setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -43,8 +55,13 @@ export default function PlantaOverview() {
     carregar();
   }, [carregar]);
 
-  const sel = ctos.find((c) => c.id === selectedId) ?? null;
-  const noMapa = ctos.filter((c) => c.lat != null).length;
+  const camadas = [
+    ...(showCtos ? [{ chave: "cto", pontos: ctos, cor: COR_CTO }] : []),
+    ...(showPostes ? [{ chave: "poste", pontos: postes, cor: COR_POSTE }] : []),
+  ];
+
+  const ctoSel = sel?.camada === "cto" ? ctos.find((c) => c.id === sel.id) ?? null : null;
+  const posteSel = sel?.camada === "poste" ? postes.find((p) => p.id === sel.id) ?? null : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -63,26 +80,27 @@ export default function PlantaOverview() {
             </div>
           )}
 
-          {/* Camadas */}
           <div className="mb-4">
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
               Camadas
             </h2>
-            <label className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-[var(--surface-2)]">
-              <span className="flex items-center gap-2 text-sm">
-                <span className="inline-block h-3 w-3 rounded-full bg-[#16a34a]" />
-                CTOs
-              </span>
-              <input
-                type="checkbox"
-                checked={showCtos}
-                onChange={(e) => setShowCtos(e.target.checked)}
-                className="h-4 w-4 accent-[var(--accent)]"
-              />
-            </label>
-            <div className="px-2 pt-1 text-xs text-[var(--muted)]">
-              {carregando ? "carregando…" : `${noMapa} no mapa de ${ctos.length}`}
-            </div>
+
+            <CamadaToggle
+              cor={COR_CTO}
+              label="CTOs"
+              count={`${ctos.filter((c) => c.lat != null).length}/${ctos.length}`}
+              checked={showCtos}
+              onChange={setShowCtos}
+            />
+            <CamadaToggle
+              cor={COR_POSTE}
+              label="Postes"
+              count={`${postes.filter((p) => p.lat != null).length}/${postes.length}`}
+              checked={showPostes}
+              onChange={setShowPostes}
+            />
+
+            {carregando && <div className="px-2 pt-1 text-xs text-[var(--muted)]">carregando…</div>}
 
             {CAMADAS_FUTURAS.map((c) => (
               <div
@@ -95,52 +113,80 @@ export default function PlantaOverview() {
             ))}
           </div>
 
-          {/* Detalhes do elemento selecionado */}
           <div>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
               Detalhes
             </h2>
-            {!sel ? (
-              <p className="text-sm text-[var(--muted)]">Nenhum elemento selecionado.</p>
-            ) : (
+            {ctoSel ? (
               <div className="card space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold">{sel.codigo}</span>
-                  <span className="rounded-md bg-[#16a34a]/20 px-2 py-0.5 text-xs text-[#22c55e]">
-                    CTO
-                  </span>
+                  <span className="text-base font-semibold">{ctoSel.codigo}</span>
+                  <span className="rounded-md bg-[#16a34a]/20 px-2 py-0.5 text-xs text-[#22c55e]">CTO</span>
                 </div>
-                <Detalhe rotulo="Splitter" valor={sel.tipoSplitter} />
-                <Detalhe rotulo="Portas" valor={sel.capacidade != null ? String(sel.capacidade) : null} />
-                <Detalhe rotulo="Endereço" valor={sel.endereco} />
-                <Detalhe rotulo="Observação" valor={sel.observacao} />
-                <Detalhe
-                  rotulo="Coordenada"
-                  valor={sel.lat != null ? `${sel.lat.toFixed(6)}, ${sel.lng?.toFixed(6)}` : null}
-                />
-                <Detalhe rotulo="Origem" valor={sel.origem} />
-                <Link
-                  href="/ctos"
-                  className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline"
-                >
+                <Detalhe rotulo="Splitter" valor={ctoSel.tipoSplitter} />
+                <Detalhe rotulo="Portas" valor={ctoSel.capacidade != null ? String(ctoSel.capacidade) : null} />
+                <Detalhe rotulo="Endereço" valor={ctoSel.endereco} />
+                <Detalhe rotulo="Observação" valor={ctoSel.observacao} />
+                <Link href="/ctos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
                   Editar no módulo CTOs →
                 </Link>
               </div>
+            ) : posteSel ? (
+              <div className="card space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-semibold">{posteSel.codigo || "(sem código)"}</span>
+                  <span className="rounded-md bg-[#f59e0b]/20 px-2 py-0.5 text-xs text-[#f59e0b]">Poste</span>
+                </div>
+                <Detalhe rotulo="Tipo" valor={posteSel.tipo} />
+                <Detalhe rotulo="Altura" valor={posteSel.alturaM != null ? `${posteSel.alturaM} m` : null} />
+                <Detalhe rotulo="Propriedade" valor={posteSel.dono === "alugado" ? "Alugado" : "Próprio"} />
+                <Detalhe rotulo="Concessionária" valor={posteSel.concessionaria} />
+                <Detalhe rotulo="Observação" valor={posteSel.observacao} />
+                <Link href="/postes" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
+                  Editar no módulo Postes →
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--muted)]">Nenhum elemento selecionado.</p>
             )}
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <PlantaMap
-            ctos={showCtos ? ctos : []}
-            selectedId={selectedId}
-            pending={null}
-            onMapClick={() => {}}
-            onSelectCto={setSelectedId}
-          />
+          <PlantaMap camadas={camadas} selecionado={sel} onSelect={(camada, id) => setSel({ camada, id })} />
         </main>
       </div>
     </div>
+  );
+}
+
+function CamadaToggle({
+  cor,
+  label,
+  count,
+  checked,
+  onChange,
+}: {
+  cor: string;
+  label: string;
+  count: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-[var(--surface-2)]">
+      <span className="flex items-center gap-2 text-sm">
+        <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: cor }} />
+        {label}
+        <span className="text-xs text-[var(--muted)]">{count}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 accent-[var(--accent)]"
+      />
+    </label>
   );
 }
 
