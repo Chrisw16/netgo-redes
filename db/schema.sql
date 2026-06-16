@@ -1,38 +1,43 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- NetGo Redes — schema do banco PRÓPRIO (PostgreSQL + PostGIS)
 -- ════════════════════════════════════════════════════════════════════════════
--- Este banco guarda a PLANTA FÍSICA que o SGP não tem. O SGP (dbconect) é só
--- leitura e é consultado em tempo real; aqui nada do SGP é duplicado, exceto a
--- chave de junção: o id do splitter (CTO).
+-- O NetGo Redes é a FONTE DA VERDADE da planta. CTO, poste, cabo, CEO e fusão
+-- são entidades NATIVAS, criadas e editadas com as ferramentas do próprio
+-- sistema. Tudo funciona sem o SGP.
 --
--- SRID 4326 (WGS84 lat/lng) em tudo, para casar com OpenStreetMap/Leaflet.
--- Rodar uma vez no banco novo:  psql "$APP_DATABASE_URL" -f db/schema.sql
+-- O SGP é um ACRÉSCIMO opcional: pode SEMEAR estas tabelas (import do mapaftth)
+-- e ENRIQUECER a visão (ocupação/sinal em tempo real). O vínculo é uma coluna
+-- anulável (`cto.sgp_splitter_id`), nunca uma dependência.
+--
+-- SRID 4326 (WGS84 lat/lng), para casar com OpenStreetMap/Leaflet.
+-- `geom` é anulável em tudo: dá pra cadastrar primeiro e localizar depois.
+-- Rodar no banco:  psql "$APP_DATABASE_URL" -f db/schema.sql  (ou /api/migrate)
 -- ════════════════════════════════════════════════════════════════════════════
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- ── CTO: coordenada LIMPA ────────────────────────────────────────────────────
--- A CTO em si (portas, ocupação, clientes) vive no SGP (netcore_splitter).
--- Aqui guardamos só a geolocalização confiável, amarrada pelo id do splitter.
--- Resolve o gap: ~73% das CTOs sem coordenada válida no SGP.
-CREATE TABLE IF NOT EXISTS cto_geo (
-  splitter_id   BIGINT PRIMARY KEY,            -- = netcore_splitter.id no SGP
-  geom          geometry(Point, 4326) NOT NULL,
+-- Remove o modelo antigo dependente do SGP (cto_geo era keyed pelo splitter_id).
+-- Seguro: tabela vazia, recém-criada. A CTO agora é nativa (ver tabela `cto`).
+DROP TABLE IF EXISTS cto_geo;
+
+-- ── POP: Ponto de Presença ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pop (
+  id            BIGSERIAL PRIMARY KEY,
+  codigo        TEXT UNIQUE NOT NULL,
+  nome          TEXT,
+  geom          geometry(Point, 4326),
   endereco      TEXT,
-  fonte         TEXT NOT NULL DEFAULT 'manual', -- manual | importado_sgp | kmz
   observacao    TEXT,
-  revisado_por  TEXT,
-  revisado_em   TIMESTAMPTZ,
   criado_em     TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS cto_geo_gix ON cto_geo USING GIST (geom);
+CREATE INDEX IF NOT EXISTS pop_gix ON pop USING GIST (geom);
 
--- ── Poste ────────────────────────────────────────────────────────────────────
+-- ── Poste ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS poste (
   id             BIGSERIAL PRIMARY KEY,
   codigo         TEXT UNIQUE,
-  geom           geometry(Point, 4326) NOT NULL,
+  geom           geometry(Point, 4326),
   tipo           TEXT,                          -- concreto | madeira | metalico...
   altura_m       NUMERIC(5,2),
   dono           TEXT NOT NULL DEFAULT 'proprio', -- proprio | alugado
@@ -43,16 +48,56 @@ CREATE TABLE IF NOT EXISTS poste (
 );
 CREATE INDEX IF NOT EXISTS poste_gix ON poste USING GIST (geom);
 
+-- ── CEO: Caixa de Emenda Óptica ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ceo (
+  id            BIGSERIAL PRIMARY KEY,
+  codigo        TEXT UNIQUE,
+  nome          TEXT,
+  geom          geometry(Point, 4326),
+  poste_id      BIGINT REFERENCES poste(id) ON DELETE SET NULL,
+  tipo          TEXT,
+  capacidade    INT,                            -- nº de fusões suportadas
+  observacao    TEXT,
+  origem        TEXT NOT NULL DEFAULT 'manual', -- manual | mapaftth | kmz
+  sgp_ceo_id    BIGINT,                         -- vínculo opcional (mapaftth_ceo.id)
+  criado_em     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ceo_gix ON ceo USING GIST (geom);
+
+-- ── CTO: Caixa de Terminação Óptica (entidade NATIVA) ────────────────────────
+-- O coração da planta. Existe por si só. O `sgp_splitter_id` é OPCIONAL: quando
+-- preenchido, o sistema enriquece a CTO com portas/ocupação/sinal lidos do SGP.
+CREATE TABLE IF NOT EXISTS cto (
+  id              BIGSERIAL PRIMARY KEY,
+  codigo          TEXT UNIQUE NOT NULL,         -- ident/nome da CTO
+  geom            geometry(Point, 4326),        -- nula até georreferenciar
+  tipo_splitter   TEXT,                          -- 1:8 | 1:16 | 1:32
+  capacidade      INT,                           -- nº de portas
+  ceo_id          BIGINT REFERENCES ceo(id) ON DELETE SET NULL,
+  poste_id        BIGINT REFERENCES poste(id) ON DELETE SET NULL,
+  endereco        TEXT,
+  observacao      TEXT,
+  origem          TEXT NOT NULL DEFAULT 'manual', -- manual | mapaftth | mapll | kmz
+  sgp_splitter_id BIGINT UNIQUE,                 -- vínculo OPCIONAL (netcore_splitter.id)
+  criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS cto_gix ON cto USING GIST (geom);
+CREATE INDEX IF NOT EXISTS cto_sgp_ix ON cto (sgp_splitter_id);
+
 -- ── Cabo de fibra ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cabo (
   id            BIGSERIAL PRIMARY KEY,
   codigo        TEXT UNIQUE,
-  tipo          TEXT NOT NULL,                  -- backbone | distribuicao | drop
-  fibras        INT NOT NULL,                   -- capacidade (ex.: 12, 24, 72...)
+  tipo          TEXT,                           -- backbone | distribuicao | drop
+  fibras        INT,                            -- capacidade (ex.: 6, 12, 24, 72...)
   fabricante    TEXT,
   geom          geometry(LineString, 4326),     -- traçado no mapa
   comprimento_m NUMERIC(10,2),                  -- pode derivar de ST_Length(geom::geography)
   observacao    TEXT,
+  origem        TEXT NOT NULL DEFAULT 'manual', -- manual | mapaftth | kmz
+  sgp_cabo_id   BIGINT,                         -- vínculo opcional (mapaftth_cabo.id)
   criado_em     TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -66,22 +111,8 @@ CREATE TABLE IF NOT EXISTS cabo_poste (
   PRIMARY KEY (cabo_id, poste_id)
 );
 
--- ── CEO: Caixa de Emenda Óptica ──────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS ceo (
-  id            BIGSERIAL PRIMARY KEY,
-  codigo        TEXT UNIQUE,
-  geom          geometry(Point, 4326),
-  poste_id      BIGINT REFERENCES poste(id) ON DELETE SET NULL,
-  tipo          TEXT,
-  capacidade    INT,                            -- nº de fusões suportadas
-  observacao    TEXT,
-  criado_em     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS ceo_gix ON ceo USING GIST (geom);
-
 -- ── Fusão / emenda (fibra-a-fibra) ───────────────────────────────────────────
--- A base do "grafo óptico": cada fusão liga uma fibra de entrada a uma de saída
+-- Base do "grafo óptico": cada fusão liga uma fibra de entrada a uma de saída
 -- dentro de uma CEO. O caminho óptico ponta-a-ponta é a travessia desse grafo.
 CREATE TABLE IF NOT EXISTS fusao (
   id            BIGSERIAL PRIMARY KEY,
