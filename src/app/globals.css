@@ -1,32 +1,62 @@
 @import "tailwindcss";
 
+/* ── Tema NetGo Redes — dark navy + azul ───────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0a1322;          /* fundo navy profundo */
+  --surface: #0f1d33;     /* painéis */
+  --surface-2: #15263f;   /* hover / cards */
+  --border: #1d3252;      /* linhas */
+  --text: #e6edf6;        /* texto */
+  --muted: #8aa0bd;       /* texto secundário */
+  --accent: #2f6bff;      /* azul */
+  --accent-2: #1e4fd1;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
 }
 
 @layer components {
-  .input {
-    @apply w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-blue-500;
+  .card {
+    @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4;
   }
+  .input {
+    @apply w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm
+           text-[var(--text)] outline-none placeholder:text-[var(--muted)]
+           focus:border-[var(--accent)];
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--border)]
+           bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)]
+           transition-colors hover:border-[var(--accent)] disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2
+           text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-2)]
+           disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40
+           px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10
+           disabled:opacity-50;
+  }
+}
+
+/* Leaflet em tema escuro: fundo do container combina com o app */
+.leaflet-container {
+  background: var(--surface);
 }

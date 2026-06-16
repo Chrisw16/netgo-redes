@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import type { Cto } from "@/lib/cto";
 
-const PlantaMap = dynamic(() => import("@/components/PlantaMap"), {
+const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full items-center justify-center text-sm text-gray-500">
+    <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
       Carregando mapa…
     </div>
   ),
@@ -63,7 +63,10 @@ export default function PlantaPage() {
   }, [carregar]);
 
   const pending = useMemo(
-    () => (mode === "new" && form.lat != null && form.lng != null ? { lat: form.lat, lng: form.lng } : null),
+    () =>
+      mode === "new" && form.lat != null && form.lng != null
+        ? { lat: form.lat, lng: form.lng }
+        : null,
     [mode, form.lat, form.lng],
   );
 
@@ -79,26 +82,27 @@ export default function PlantaPage() {
     setForm(FORM_VAZIO);
   }
 
-  function selecionar(id: number) {
-    const c = ctos.find((x) => x.id === id);
-    if (!c) return;
-    setMode("edit");
-    setSelectedId(id);
-    setForm({
-      codigo: c.codigo,
-      tipoSplitter: c.tipoSplitter ?? "",
-      capacidade: c.capacidade != null ? String(c.capacidade) : "",
-      endereco: c.endereco ?? "",
-      observacao: c.observacao ?? "",
-      lat: c.lat,
-      lng: c.lng,
-    });
-  }
+  const selecionar = useCallback(
+    (id: number) => {
+      const c = ctos.find((x) => x.id === id);
+      if (!c) return;
+      setMode("edit");
+      setSelectedId(id);
+      setForm({
+        codigo: c.codigo,
+        tipoSplitter: c.tipoSplitter ?? "",
+        capacidade: c.capacidade != null ? String(c.capacidade) : "",
+        endereco: c.endereco ?? "",
+        observacao: c.observacao ?? "",
+        lat: c.lat,
+        lng: c.lng,
+      });
+    },
+    [ctos],
+  );
 
-  // Clique no mapa: define a localização da CTO sendo criada/editada.
   function aoClicarMapa(lat: number, lng: number) {
     if (mode === "idle") {
-      // começa uma nova CTO no ponto clicado
       setMode("new");
       setSelectedId(null);
       setForm({ ...FORM_VAZIO, lat, lng });
@@ -125,9 +129,8 @@ export default function PlantaPage() {
     };
     try {
       const url = mode === "edit" && selectedId ? `/api/cto/${selectedId}` : "/api/cto";
-      const method = mode === "edit" ? "PATCH" : "POST";
       const r = await fetch(url, {
-        method,
+        method: mode === "edit" ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -162,49 +165,47 @@ export default function PlantaPage() {
   const semCoord = ctos.filter((c) => c.lat == null).length;
 
   return (
-    <div className="flex h-screen flex-col bg-white text-gray-900">
-      <header className="flex items-center justify-between border-b px-4 py-3">
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
         <div>
-          <h1 className="text-lg font-semibold">NetGo Redes — Planta</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-lg font-semibold">Mapa da Planta</h1>
+          <p className="text-xs text-[var(--muted)]">
             {ctos.length} CTOs · {ctos.length - semCoord} no mapa · {semCoord} sem coordenada
           </p>
         </div>
-        <button
-          onClick={novaCto}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
+        <button onClick={novaCto} className="btn-primary">
           + Nova CTO
         </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* Painel */}
-        <aside className="w-96 shrink-0 overflow-y-auto border-r p-4">
+        <aside className="w-80 shrink-0 overflow-y-auto border-r border-[var(--border)] p-4">
           {erro && (
-            <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</div>
+            <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              {erro}
+            </div>
           )}
 
           {mode === "idle" ? (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Clique em <strong>+ Nova CTO</strong> (ou direto no mapa) para cadastrar. Clique
-                num ponto verde para editar.
+              <p className="text-sm text-[var(--muted)]">
+                Clique em <strong className="text-[var(--text)]">+ Nova CTO</strong> (ou direto no
+                mapa) para cadastrar. Clique num ponto para editar.
               </p>
-              <ul className="divide-y text-sm">
+              <ul className="divide-y divide-[var(--border)]/60 text-sm">
                 {carregando ? (
-                  <li className="py-2 text-gray-500">Carregando…</li>
+                  <li className="py-2 text-[var(--muted)]">Carregando…</li>
                 ) : ctos.length === 0 ? (
-                  <li className="py-2 text-gray-500">Nenhuma CTO ainda.</li>
+                  <li className="py-2 text-[var(--muted)]">Nenhuma CTO ainda.</li>
                 ) : (
                   ctos.map((c) => (
                     <li key={c.id}>
                       <button
                         onClick={() => selecionar(c.id)}
-                        className="flex w-full items-center justify-between py-2 text-left hover:text-blue-600"
+                        className="flex w-full items-center justify-between py-2 text-left hover:text-[var(--accent)]"
                       >
                         <span className="font-medium">{c.codigo}</span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-[var(--muted)]">
                           {c.lat == null ? "sem mapa" : "no mapa"}
                         </span>
                       </button>
@@ -223,7 +224,8 @@ export default function PlantaPage() {
             >
               <h2 className="font-medium">{mode === "edit" ? "Editar CTO" : "Nova CTO"}</h2>
 
-              <Campo label="Código *">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Código *</span>
                 <input
                   value={form.codigo}
                   onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
@@ -231,10 +233,11 @@ export default function PlantaPage() {
                   placeholder="ex.: NTL1-R1-01"
                   autoFocus
                 />
-              </Campo>
+              </label>
 
               <div className="grid grid-cols-2 gap-2">
-                <Campo label="Splitter">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Splitter</span>
                   <select
                     value={form.tipoSplitter}
                     onChange={(e) => setForm((f) => ({ ...f, tipoSplitter: e.target.value }))}
@@ -245,8 +248,9 @@ export default function PlantaPage() {
                     <option value="1:16">1:16</option>
                     <option value="1:32">1:32</option>
                   </select>
-                </Campo>
-                <Campo label="Portas">
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Portas</span>
                   <input
                     type="number"
                     value={form.capacidade}
@@ -254,56 +258,50 @@ export default function PlantaPage() {
                     className="input"
                     placeholder="ex.: 16"
                   />
-                </Campo>
+                </label>
               </div>
 
-              <Campo label="Endereço">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Endereço</span>
                 <input
                   value={form.endereco}
                   onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))}
                   className="input"
                 />
-              </Campo>
+              </label>
 
-              <Campo label="Observação">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Observação</span>
                 <textarea
                   value={form.observacao}
                   onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
                   className="input"
                   rows={2}
                 />
-              </Campo>
+              </label>
 
-              <div className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <div className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
                 {form.lat != null && form.lng != null ? (
-                  <>Local: {form.lat.toFixed(6)}, {form.lng.toFixed(6)} — clique no mapa para mudar.</>
+                  <>
+                    Local: {form.lat.toFixed(6)}, {form.lng.toFixed(6)} — clique no mapa para mudar.
+                  </>
                 ) : (
-                  <>Sem coordenada. <strong>Clique no mapa</strong> para posicionar.</>
+                  <>
+                    Sem coordenada. <strong className="text-[var(--text)]">Clique no mapa</strong>{" "}
+                    para posicionar.
+                  </>
                 )}
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="submit"
-                  disabled={salvando}
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button type="submit" disabled={salvando} className="btn-primary">
                   {salvando ? "Salvando…" : "Salvar"}
                 </button>
-                <button
-                  type="button"
-                  onClick={cancelar}
-                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
-                >
+                <button type="button" onClick={cancelar} className="btn">
                   Cancelar
                 </button>
                 {mode === "edit" && (
-                  <button
-                    type="button"
-                    onClick={excluir}
-                    disabled={salvando}
-                    className="ml-auto rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
+                  <button type="button" onClick={excluir} disabled={salvando} className="btn-danger ml-auto">
                     Excluir
                   </button>
                 )}
@@ -312,7 +310,6 @@ export default function PlantaPage() {
           )}
         </aside>
 
-        {/* Mapa */}
         <main className="min-w-0 flex-1">
           <PlantaMap
             ctos={ctos}
@@ -324,14 +321,5 @@ export default function PlantaPage() {
         </main>
       </div>
     </div>
-  );
-}
-
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
-      {children}
-    </label>
   );
 }
