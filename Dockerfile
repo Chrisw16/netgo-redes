@@ -34,6 +34,8 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# SQL do schema, usado pela rota /api/migrate em runtime.
+COPY --from=builder /app/db ./db
 
 USER nextjs
 EXPOSE 3000
