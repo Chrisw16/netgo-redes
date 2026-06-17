@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMapa } from "@/components/MapaShell";
+import type { Vertice } from "@/lib/cabo";
 
 type Form = {
   codigo: string;
@@ -14,21 +15,33 @@ type Form = {
 const FORM_VAZIO: Form = { codigo: "", tipo: "", fibras: "", fabricante: "", observacao: "" };
 
 export default function CabosPanel() {
-  const { cabos, postes, recarregar, sel, setSel, setMapClick } = useMapa();
+  const { cabos, postes, recarregar, sel, setSel, setMapClick, setPendingLine } = useMapa();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
-  const [rota, setRota] = useState<number[]>([]);
+  const [vertices, setVertices] = useState<Vertice[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  // O cabo é montado clicando em postes; nada de clique em mapa vazio.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  // Clique em mapa vazio = ponto livre da linha (só com o formulário aberto).
   useEffect(() => {
-    setMapClick(null);
+    setMapClick((lat, lng) => {
+      if (modeRef.current === "idle") return;
+      setVertices((v) => [...v, { lat, lng, posteId: null }]);
+    });
     return () => setMapClick(null);
   }, [setMapClick]);
 
-  // Selecionar um cabo (linha ou lista) carrega para edição.
+  // Espelha os vértices como "linha em construção" no mapa.
+  useEffect(() => {
+    setPendingLine(vertices.length ? vertices.map((v) => [v.lat, v.lng] as [number, number]) : null);
+    return () => setPendingLine(null);
+  }, [vertices, setPendingLine]);
+
+  // Selecionar um cabo carrega para edição.
   useEffect(() => {
     if (sel?.camada !== "cabo") return;
     const c = cabos.find((x) => x.id === sel.id);
@@ -42,22 +55,28 @@ export default function CabosPanel() {
       fabricante: c.fabricante ?? "",
       observacao: c.observacao ?? "",
     });
-    setRota(c.posteIds);
+    setVertices(c.vertices);
   }, [sel, cabos]);
 
-  // Com o formulário aberto, clicar num POSTE adiciona-o à rota.
+  // Clicar num poste (form aberto) adiciona-o como vértice âncora.
   useEffect(() => {
     if (mode === "idle") return;
     if (sel?.camada !== "poste") return;
-    setRota((r) => (r[r.length - 1] === sel.id ? r : [...r, sel.id]));
-  }, [sel, mode]);
+    const p = postes.find((x) => x.id === sel.id);
+    if (!p || p.lat == null || p.lng == null) return;
+    setVertices((v) => {
+      const last = v[v.length - 1];
+      if (last && last.posteId === p.id) return v;
+      return [...v, { lat: p.lat as number, lng: p.lng as number, posteId: p.id }];
+    });
+  }, [sel, mode, postes]);
 
   function novo() {
     setSel(null);
     setMode("new");
     setEditId(null);
     setForm(FORM_VAZIO);
-    setRota([]);
+    setVertices([]);
   }
 
   function cancelar() {
@@ -65,11 +84,11 @@ export default function CabosPanel() {
     setMode("idle");
     setEditId(null);
     setForm(FORM_VAZIO);
-    setRota([]);
+    setVertices([]);
   }
 
-  function removerDaRota(idx: number) {
-    setRota((r) => r.filter((_, i) => i !== idx));
+  function removerVertice(idx: number) {
+    setVertices((v) => v.filter((_, i) => i !== idx));
   }
 
   async function salvar() {
@@ -81,7 +100,7 @@ export default function CabosPanel() {
       fibras: form.fibras || null,
       fabricante: form.fabricante || null,
       observacao: form.observacao || null,
-      posteIds: rota,
+      pontos: vertices,
     };
     try {
       const r = await fetch(editId ? `/api/cabo/${editId}` : "/api/cabo", {
@@ -117,7 +136,10 @@ export default function CabosPanel() {
     }
   }
 
-  const codPoste = (id: number) => postes.find((p) => p.id === id)?.codigo || `#${id}`;
+  const rotuloVertice = (v: Vertice) =>
+    v.posteId != null
+      ? postes.find((p) => p.id === v.posteId)?.codigo || `Poste #${v.posteId}`
+      : "ponto livre";
 
   return (
     <div>
@@ -143,7 +165,7 @@ export default function CabosPanel() {
             {cabos.length === 0 ? (
               <li className="py-2 text-[var(--muted)]">
                 Nenhum cabo. Clique em <strong className="text-[var(--text)]">+ Novo</strong> e
-                clique nos postes da rota.
+                trace a rota no mapa.
               </li>
             ) : (
               cabos.map((c) => (
@@ -218,16 +240,16 @@ export default function CabosPanel() {
               />
             </label>
 
-            {/* Rota por postes */}
+            {/* Traçado da fibra */}
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-xs font-medium text-[var(--muted)]">
-                  Rota ({rota.length} postes)
+                  Traçado ({vertices.length} pontos)
                 </span>
-                {rota.length > 0 && (
+                {vertices.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setRota([])}
+                    onClick={() => setVertices([])}
                     className="text-[11px] text-[var(--muted)] hover:text-red-300"
                   >
                     limpar
@@ -235,21 +257,27 @@ export default function CabosPanel() {
                 )}
               </div>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2 text-sm">
-                {rota.length === 0 ? (
+                {vertices.length === 0 ? (
                   <p className="text-xs text-[var(--muted)]">
-                    Clique nos <strong className="text-[var(--text)]">postes</strong> no mapa, na
-                    ordem da rota.
+                    Trace a fibra no mapa: clique nos <strong className="text-[var(--text)]">postes</strong>{" "}
+                    (âncora) e em <strong className="text-[var(--text)]">pontos livres</strong> para
+                    seguir a rua.
                   </p>
                 ) : (
                   <ol className="space-y-1">
-                    {rota.map((pid, idx) => (
-                      <li key={`${pid}-${idx}`} className="flex items-center justify-between">
+                    {vertices.map((v, idx) => (
+                      <li key={idx} className="flex items-center justify-between">
                         <span>
-                          <span className="text-[var(--muted)]">{idx + 1}.</span> {codPoste(pid)}
+                          <span className="text-[var(--muted)]">{idx + 1}.</span>{" "}
+                          {v.posteId != null ? (
+                            <span className="text-[#f59e0b]">{rotuloVertice(v)}</span>
+                          ) : (
+                            <span className="text-[var(--muted)]">ponto livre</span>
+                          )}
                         </span>
                         <button
                           type="button"
-                          onClick={() => removerDaRota(idx)}
+                          onClick={() => removerVertice(idx)}
                           className="text-[var(--muted)] hover:text-red-300"
                         >
                           ✕
@@ -259,10 +287,8 @@ export default function CabosPanel() {
                   </ol>
                 )}
               </div>
-              {rota.length === 1 && (
-                <p className="mt-1 text-[11px] text-amber-300">
-                  Adicione ao menos 2 postes para desenhar a rota.
-                </p>
+              {vertices.length === 1 && (
+                <p className="mt-1 text-[11px] text-amber-300">Adicione ao menos 2 pontos.</p>
               )}
             </div>
 

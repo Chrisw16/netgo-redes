@@ -42,6 +42,8 @@ interface MapaState {
   setSel: (s: Selecao) => void;
   pending: Ponto;
   setPending: (p: Ponto) => void;
+  pendingLine: [number, number][] | null;
+  setPendingLine: (l: [number, number][] | null) => void;
   setMapClick: (fn: ((lat: number, lng: number) => void) | null) => void;
 }
 
@@ -60,6 +62,7 @@ export default function MapaShell({ children }: { children: ReactNode }) {
   const [vis, setVis] = useState<Record<string, boolean>>({ cto: true, poste: true, cabo: true });
   const [sel, setSel] = useState<Selecao>(null);
   const [pending, setPending] = useState<Ponto>(null);
+  const [pendingLine, setPendingLine] = useState<[number, number][] | null>(null);
   const clickRef = useRef<((lat: number, lng: number) => void) | null>(null);
 
   const setMapClick = useCallback((fn: ((lat: number, lng: number) => void) | null) => {
@@ -88,16 +91,18 @@ export default function MapaShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSel(null);
     setPending(null);
+    setPendingLine(null);
     clickRef.current = null;
   }, [pathname]);
 
-  const ativa = pathname.startsWith("/ctos")
+  // Qual camada de PONTOS tem prioridade de clique / fica por cima. No módulo
+  // de Cabos é o poste (a rota é montada clicando postes), mesmo havendo CTO.
+  const pontoAtivo = pathname.startsWith("/ctos")
     ? "cto"
-    : pathname.startsWith("/postes")
+    : pathname.startsWith("/postes") || pathname.startsWith("/cabos")
       ? "poste"
-      : pathname.startsWith("/cabos")
-        ? "cabo"
-        : null;
+      : null;
+  const linhaAtiva = pathname.startsWith("/cabos") ? "cabo" : null;
 
   const toggleVis = (k: string) => setVis((v) => ({ ...v, [k]: !v[k] }));
 
@@ -127,6 +132,8 @@ export default function MapaShell({ children }: { children: ReactNode }) {
     setSel,
     pending,
     setPending,
+    pendingLine,
+    setPendingLine,
     setMapClick,
   };
 
@@ -141,9 +148,11 @@ export default function MapaShell({ children }: { children: ReactNode }) {
           <PlantaMap
             camadas={camadas}
             linhas={linhas}
-            ativa={ativa}
+            pontoAtivo={pontoAtivo}
+            linhaAtiva={linhaAtiva}
             selecionado={sel}
             pending={pending}
+            pendingLine={pendingLine}
             onMapClick={(lat, lng) => clickRef.current?.(lat, lng)}
             onSelect={(camada, id) => setSel({ camada, id })}
           />

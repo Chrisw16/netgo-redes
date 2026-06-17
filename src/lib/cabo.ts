@@ -1,6 +1,13 @@
 import { appQuery } from "@/lib/appdb";
 
-/** Cabo de fibra: uma rota que liga postes em sequência (LINESTRING no PostGIS). */
+/** Vértice da rota do cabo: um ponto da linha, opcionalmente ancorado num poste. */
+export interface Vertice {
+  lat: number;
+  lng: number;
+  posteId: number | null;
+}
+
+/** Cabo de fibra: linha desenhada (LINESTRING) com vértices livres e/ou em postes. */
 export interface Cabo {
   id: number;
   codigo: string | null;
@@ -10,8 +17,9 @@ export interface Cabo {
   observacao: string | null;
   comprimentoM: number | null;
   origem: string;
-  posteIds: number[]; // ordem da rota
-  coords: [number, number][]; // [lat,lng] ordenado (só postes com coordenada)
+  posteIds: number[];
+  coords: [number, number][]; // [lat,lng] da linha
+  vertices: Vertice[];
 }
 
 export interface CaboInput {
@@ -20,7 +28,7 @@ export interface CaboInput {
   fibras?: number | null;
   fabricante?: string | null;
   observacao?: string | null;
-  posteIds: number[];
+  pontos: Vertice[];
 }
 
 interface Row {
@@ -32,22 +40,34 @@ interface Row {
   observacao: string | null;
   comprimento_m: number | null;
   origem: string;
-  poste_ids: number[] | null;
-  coords: { lat: number; lng: number }[] | null;
+  geojson: string | null;
+  postes: { posteId: number; ordem: number }[] | null;
 }
 
 const BASE = `
   SELECT c.id, c.codigo, c.tipo, c.fibras, c.fabricante, c.observacao,
          c.comprimento_m, c.origem,
-         COALESCE(json_agg(cp.poste_id ORDER BY cp.ordem)
-                  FILTER (WHERE cp.poste_id IS NOT NULL), '[]'::json) AS poste_ids,
-         COALESCE(json_agg(json_build_object('lat', ST_Y(p.geom), 'lng', ST_X(p.geom))
-                  ORDER BY cp.ordem) FILTER (WHERE p.geom IS NOT NULL), '[]'::json) AS coords
-  FROM cabo c
-  LEFT JOIN cabo_poste cp ON cp.cabo_id = c.id
-  LEFT JOIN poste p ON p.id = cp.poste_id`;
+         ST_AsGeoJSON(c.geom) AS geojson,
+         COALESCE((
+           SELECT json_agg(json_build_object('posteId', cp.poste_id, 'ordem', cp.ordem)
+                           ORDER BY cp.ordem)
+           FROM cabo_poste cp WHERE cp.cabo_id = c.id
+         ), '[]'::json) AS postes
+  FROM cabo c`;
 
 function toCabo(r: Row): Cabo {
+  const coords: [number, number][] = r.geojson
+    ? (JSON.parse(r.geojson).coordinates as [number, number][]).map(
+        ([lng, lat]) => [lat, lng] as [number, number],
+      )
+    : [];
+  const postes = r.postes ?? [];
+  const byOrdem = new Map(postes.map((p) => [p.ordem, p.posteId]));
+  const vertices: Vertice[] = coords.map(([lat, lng], i) => ({
+    lat,
+    lng,
+    posteId: byOrdem.get(i + 1) ?? null,
+  }));
   return {
     id: r.id,
     codigo: r.codigo,
@@ -57,46 +77,54 @@ function toCabo(r: Row): Cabo {
     observacao: r.observacao,
     comprimentoM: r.comprimento_m,
     origem: r.origem,
-    posteIds: r.poste_ids ?? [],
-    coords: (r.coords ?? []).map((c) => [c.lat, c.lng] as [number, number]),
+    posteIds: postes.map((p) => p.posteId),
+    coords,
+    vertices,
   };
 }
 
 export async function listCabos(): Promise<Cabo[]> {
-  const rows = await appQuery<Row>(`${BASE} GROUP BY c.id ORDER BY c.codigo NULLS LAST, c.id`);
+  const rows = await appQuery<Row>(`${BASE} ORDER BY c.codigo NULLS LAST, c.id`);
   return rows.map(toCabo);
 }
 
 export async function getCabo(id: number): Promise<Cabo | null> {
-  const rows = await appQuery<Row>(`${BASE} WHERE c.id = $1 GROUP BY c.id`, [id]);
+  const rows = await appQuery<Row>(`${BASE} WHERE c.id = $1`, [id]);
   return rows[0] ? toCabo(rows[0]) : null;
 }
 
-/** Regrava a sequência de postes (cabo_poste) e recalcula geometria + comprimento. */
-async function definirRota(id: number, posteIds: number[]): Promise<void> {
+/** Regrava geometria (linha desenhada) e os postes-âncora (cabo_poste). */
+async function definirRota(id: number, pontos: Vertice[]): Promise<void> {
   await appQuery(`DELETE FROM cabo_poste WHERE cabo_id = $1`, [id]);
-  if (posteIds.length > 0) {
+
+  if (pontos.length >= 2) {
+    const wkt = `LINESTRING(${pontos.map((p) => `${p.lng} ${p.lat}`).join(",")})`;
+    await appQuery(
+      `UPDATE cabo SET geom = ST_GeomFromText($2, 4326),
+         comprimento_m = ST_Length(ST_GeomFromText($2, 4326)::geography),
+         atualizado_em = now()
+       WHERE id = $1`,
+      [id, wkt],
+    );
+  } else {
+    await appQuery(`UPDATE cabo SET geom = NULL, comprimento_m = NULL, atualizado_em = now() WHERE id = $1`, [id]);
+  }
+
+  const pids: number[] = [];
+  const ords: number[] = [];
+  pontos.forEach((p, i) => {
+    if (p.posteId != null) {
+      pids.push(p.posteId);
+      ords.push(i + 1);
+    }
+  });
+  if (pids.length > 0) {
     await appQuery(
       `INSERT INTO cabo_poste (cabo_id, poste_id, ordem)
-       SELECT $1, pid, ord FROM unnest($2::bigint[]) WITH ORDINALITY AS t(pid, ord)`,
-      [id, posteIds],
+       SELECT $1, pid, ord FROM unnest($2::bigint[], $3::int[]) AS t(pid, ord)`,
+      [id, pids, ords],
     );
   }
-  // Geometria = linha pelos postes (em ordem) que têm coordenada; precisa de >= 2.
-  await appQuery(
-    `UPDATE cabo c SET
-       geom = sub.line,
-       comprimento_m = CASE WHEN sub.line IS NULL THEN NULL
-                            ELSE ST_Length(sub.line::geography) END,
-       atualizado_em = now()
-     FROM (
-       SELECT CASE WHEN COUNT(*) >= 2 THEN ST_MakeLine(p.geom ORDER BY cp.ordem) END AS line
-       FROM cabo_poste cp JOIN poste p ON p.id = cp.poste_id
-       WHERE cp.cabo_id = $1 AND p.geom IS NOT NULL
-     ) sub
-     WHERE c.id = $1`,
-    [id],
-  );
 }
 
 export async function createCabo(input: CaboInput): Promise<Cabo> {
@@ -111,7 +139,7 @@ export async function createCabo(input: CaboInput): Promise<Cabo> {
       input.observacao ?? null,
     ],
   );
-  await definirRota(id, input.posteIds ?? []);
+  await definirRota(id, input.pontos ?? []);
   return (await getCabo(id))!;
 }
 
@@ -129,7 +157,7 @@ export async function updateCabo(id: number, input: CaboInput): Promise<Cabo | n
     ],
   );
   if (!rows[0]) return null;
-  await definirRota(id, input.posteIds ?? []);
+  await definirRota(id, input.pontos ?? []);
   return getCabo(id);
 }
 
@@ -141,8 +169,14 @@ export async function deleteCabo(id: number): Promise<boolean> {
 export function parseCaboInput(body: Record<string, unknown>): CaboInput {
   const str = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
   const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
-  const ids = Array.isArray(body.posteIds)
-    ? body.posteIds.map((x) => Number(x)).filter((n) => Number.isFinite(n))
+  const pontos: Vertice[] = Array.isArray(body.pontos)
+    ? (body.pontos as Record<string, unknown>[])
+        .map((v) => ({
+          lat: Number(v.lat),
+          lng: Number(v.lng),
+          posteId: v.posteId != null ? Number(v.posteId) : null,
+        }))
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
     : [];
   return {
     codigo: str(body.codigo),
@@ -150,6 +184,6 @@ export function parseCaboInput(body: Record<string, unknown>): CaboInput {
     fibras: num(body.fibras),
     fabricante: str(body.fabricante),
     observacao: str(body.observacao),
-    posteIds: ids,
+    pontos,
   };
 }

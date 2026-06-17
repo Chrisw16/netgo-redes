@@ -38,10 +38,14 @@ export interface CamadaLinha {
 export interface MapaProps {
   camadas: CamadaMapa[];
   linhas?: CamadaLinha[];
-  /** Camada do módulo ativo — desenhada por cima e destacada. */
-  ativa?: string | null;
+  /** Camada de PONTOS com prioridade de clique / por cima e destacada. */
+  pontoAtivo?: string | null;
+  /** Camada de LINHAS destacada. */
+  linhaAtiva?: string | null;
   selecionado?: { camada: string; id: number } | null;
   pending?: { lat: number; lng: number } | null;
+  /** Linha em construção (desenho do cabo), tracejada. */
+  pendingLine?: [number, number][] | null;
   onMapClick?: (lat: number, lng: number) => void;
   onSelect?: (camada: string, id: number) => void;
 }
@@ -60,14 +64,16 @@ const CENTRO: [number, number] = [-5.79, -35.21];
 export default function PlantaMap({
   camadas,
   linhas,
-  ativa,
+  pontoAtivo,
+  linhaAtiva,
   selecionado,
   pending,
+  pendingLine,
   onMapClick,
   onSelect,
 }: MapaProps) {
   const ordenadas = [...camadas].sort((a, b) =>
-    a.chave === ativa ? 1 : b.chave === ativa ? -1 : 0,
+    a.chave === pontoAtivo ? 1 : b.chave === pontoAtivo ? -1 : 0,
   );
 
   return (
@@ -80,7 +86,7 @@ export default function PlantaMap({
 
       {/* Linhas (cabos) — desenhadas embaixo dos pontos */}
       {(linhas ?? []).flatMap((cam) => {
-        const ehAtiva = cam.chave === ativa;
+        const ehAtiva = cam.chave === linhaAtiva;
         return cam.itens
           .filter((l) => l.coords.length >= 2)
           .map((l) => {
@@ -104,7 +110,7 @@ export default function PlantaMap({
 
       {/* Pontos (CTOs, postes) */}
       {ordenadas.flatMap((cam) => {
-        const ehAtiva = cam.chave === ativa;
+        const ehAtiva = cam.chave === pontoAtivo;
         return cam.pontos
           .filter((p) => p.lat != null && p.lng != null)
           .map((p) => {
@@ -127,6 +133,22 @@ export default function PlantaMap({
             );
           });
       })}
+
+      {/* Linha em construção (desenho do cabo) */}
+      {pendingLine && pendingLine.length >= 2 && (
+        <Polyline
+          positions={pendingLine}
+          pathOptions={{ color: "#dc2626", weight: 4, opacity: 0.9, dashArray: "6 6" }}
+        />
+      )}
+      {pendingLine?.map(([lat, lng], i) => (
+        <CircleMarker
+          key={`pl-${i}`}
+          center={[lat, lng]}
+          radius={4}
+          pathOptions={{ color: "#dc2626", fillColor: "#dc2626", fillOpacity: 1, weight: 1 }}
+        />
+      ))}
 
       {pending && (
         <CircleMarker
