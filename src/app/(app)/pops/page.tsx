@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Pop, PopDetalhe, Rack, RackItem } from "@/lib/pop";
 
 const U_PX = 22; // altura em pixels de 1 U
@@ -16,6 +16,20 @@ const TIPOS = [
 ];
 const corTipo = (t: string, cor?: string | null) =>
   cor || TIPOS.find((x) => x.v === t)?.c || "#475569";
+
+function uOcupados(rack: Rack, exceto?: number): Set<number> {
+  const s = new Set<number>();
+  for (const it of rack.itens) {
+    if (exceto != null && it.id === exceto) continue;
+    for (let u = it.uInicio; u <= it.uInicio + it.uTamanho - 1; u++) s.add(u);
+  }
+  return s;
+}
+function primeiroULivre(rack: Rack): number {
+  const occ = uOcupados(rack);
+  for (let u = 1; u <= rack.alturaU; u++) if (!occ.has(u)) return u;
+  return 1;
+}
 
 type ItemForm = {
   rackId: number;
@@ -38,6 +52,7 @@ export default function PopsPage() {
   const [criandoPop, setCriandoPop] = useState(false);
   const [novoRack, setNovoRack] = useState<{ nome: string; alturaU: string } | null>(null);
   const [itemForm, setItemForm] = useState<ItemForm | null>(null);
+  const [erroItem, setErroItem] = useState<string | null>(null);
 
   const carregarPops = useCallback(async () => {
     try {
@@ -117,9 +132,53 @@ export default function PopsPage() {
     await carregarPop(selId);
   }
 
+  async function moverItem(it: RackItem, novoInicio: number) {
+    if (!selId) return;
+    const rack = pop?.racks.find((r) => r.id === it.rackId);
+    if (rack) {
+      const occ = uOcupados(rack, it.id);
+      for (let u = novoInicio; u <= novoInicio + it.uTamanho - 1; u++) if (occ.has(u)) return;
+    }
+    await fetch(`/api/rack-item/${it.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tipo: it.tipo,
+        modelo: it.modelo,
+        fabricante: it.fabricante,
+        uInicio: novoInicio,
+        uTamanho: it.uTamanho,
+        cor: it.cor,
+      }),
+    });
+    await carregarPop(selId);
+  }
+
   async function salvarItem(e: React.FormEvent) {
     e.preventDefault();
     if (!itemForm || !selId) return;
+    // Validação de U's: dentro do rack e sem sobrepor itens existentes.
+    const rack = pop?.racks.find((r) => r.id === itemForm.rackId);
+    const ini = Number(itemForm.uInicio);
+    const tam = Number(itemForm.uTamanho);
+    if (!Number.isFinite(ini) || !Number.isFinite(tam) || ini < 1 || tam < 1) {
+      setErroItem("U inicial e tamanho devem ser ≥ 1.");
+      return;
+    }
+    if (rack) {
+      if (ini + tam - 1 > rack.alturaU) {
+        setErroItem(`Excede a altura do rack (${rack.alturaU}U).`);
+        return;
+      }
+      const occ = uOcupados(rack, itemForm.id);
+      for (let u = ini; u <= ini + tam - 1; u++) {
+        if (occ.has(u)) {
+          setErroItem(`O U ${u} já está ocupado.`);
+          return;
+        }
+      }
+    }
+    setErroItem(null);
     const payload = {
       rackId: itemForm.rackId,
       tipo: itemForm.tipo,
@@ -270,18 +329,20 @@ export default function PopsPage() {
                   <RackView
                     key={rack.id}
                     rack={rack}
-                    onAddItem={() =>
+                    onAddItem={() => {
+                      setErroItem(null);
                       setItemForm({
                         rackId: rack.id,
                         tipo: "olt",
                         modelo: "",
                         fabricante: "",
-                        uInicio: "1",
+                        uInicio: String(primeiroULivre(rack)),
                         uTamanho: "1",
                         cor: "",
-                      })
-                    }
-                    onEditItem={(it) =>
+                      });
+                    }}
+                    onEditItem={(it) => {
+                      setErroItem(null);
                       setItemForm({
                         rackId: rack.id,
                         id: it.id,
@@ -291,8 +352,9 @@ export default function PopsPage() {
                         uInicio: String(it.uInicio),
                         uTamanho: String(it.uTamanho),
                         cor: it.cor ?? "",
-                      })
-                    }
+                      });
+                    }}
+                    onMoveItem={moverItem}
                     onDelete={() => excluirRack(rack.id)}
                   />
                 ))}
@@ -307,6 +369,11 @@ export default function PopsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={salvarItem} className="card w-full max-w-md space-y-3">
             <h3 className="font-semibold">{itemForm.id ? "Editar equipamento" : "Novo equipamento"}</h3>
+            {erroItem && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {erroItem}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Tipo</span>
@@ -392,14 +459,48 @@ function RackView({
   rack,
   onAddItem,
   onEditItem,
+  onMoveItem,
   onDelete,
 }: {
   rack: Rack;
   onAddItem: () => void;
   onEditItem: (it: RackItem) => void;
+  onMoveItem: (it: RackItem, novoInicio: number) => void;
   onDelete: () => void;
 }) {
   const altura = rack.alturaU * U_PX;
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ it: RackItem; grabOffset: number; moved: boolean } | null>(null);
+  const [drag, setDrag] = useState<{ id: number; inicio: number } | null>(null);
+
+  const slotDoPonteiro = (clientY: number) => {
+    const rect = bodyRef.current?.getBoundingClientRect();
+    return rect ? Math.floor((clientY - rect.top) / U_PX) : 0;
+  };
+
+  function aoPressionar(e: React.PointerEvent, it: RackItem) {
+    const topSlot = rack.alturaU - (it.uInicio + it.uTamanho - 1);
+    dragRef.current = { it, grabOffset: slotDoPonteiro(e.clientY) - topSlot, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function aoMover(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    d.moved = true;
+    const novoTopSlot = Math.min(
+      Math.max(slotDoPonteiro(e.clientY) - d.grabOffset, 0),
+      rack.alturaU - d.it.uTamanho,
+    );
+    setDrag({ id: d.it.id, inicio: rack.alturaU - novoTopSlot - d.it.uTamanho + 1 });
+  }
+  function aoSoltar(it: RackItem) {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d && d.moved && drag) onMoveItem(it, drag.inicio);
+    else onEditItem(it);
+    setDrag(null);
+  }
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -429,6 +530,7 @@ function RackView({
 
         {/* corpo do rack */}
         <div
+          ref={bodyRef}
           className="relative w-52 rounded-md border-2 border-[var(--border)] bg-[var(--bg)]"
           style={{ height: altura }}
         >
@@ -443,16 +545,22 @@ function RackView({
 
           {/* equipamentos */}
           {rack.itens.map((it) => {
-            const topU = it.uInicio + it.uTamanho - 1;
+            const arrastando = drag?.id === it.id;
+            const inicio = arrastando ? drag!.inicio : it.uInicio;
+            const topU = inicio + it.uTamanho - 1;
             const top = (rack.alturaU - topU) * U_PX;
             const height = it.uTamanho * U_PX;
             return (
               <button
                 key={it.id}
-                onClick={() => onEditItem(it)}
-                className="absolute left-1 right-1"
+                onPointerDown={(e) => aoPressionar(e, it)}
+                onPointerMove={aoMover}
+                onPointerUp={() => aoSoltar(it)}
+                className={`absolute left-1 right-1 touch-none ${
+                  arrastando ? "z-10 cursor-grabbing opacity-90" : "cursor-grab"
+                }`}
                 style={{ top: top + 1, height: height - 2 }}
-                title={`${it.tipo} ${it.modelo ?? ""}`}
+                title={`${it.tipo} ${it.modelo ?? ""} — arraste para mover`}
               >
                 <RackEquip item={it} />
               </button>
@@ -467,7 +575,7 @@ function RackView({
 /** Faceplate do equipamento — desenho que lembra o aparelho real, no tema escuro. */
 function RackEquip({ item }: { item: RackItem }) {
   const cor = corTipo(item.tipo, item.cor);
-  const titulo = item.modelo || item.tipo.toUpperCase();
+  const tipoLabel = TIPOS.find((t) => t.v === item.tipo)?.l ?? item.tipo;
   return (
     <div
       className="flex h-full w-full overflow-hidden rounded-sm border border-black/50 text-white shadow-md"
@@ -477,7 +585,15 @@ function RackEquip({ item }: { item: RackItem }) {
       <div className="w-1.5 shrink-0" style={{ backgroundColor: cor }} />
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] px-1.5 py-0.5">
         <div className="flex items-center justify-between gap-1">
-          <span className="truncate text-[10px] font-semibold leading-none">{titulo}</span>
+          <span className="flex min-w-0 items-center gap-1">
+            <span
+              className="shrink-0 rounded-sm bg-black/40 px-1 text-[8px] font-bold uppercase leading-[14px] tracking-wide"
+              style={{ color: cor }}
+            >
+              {tipoLabel}
+            </span>
+            <span className="truncate text-[10px] font-semibold leading-none">{item.modelo || ""}</span>
+          </span>
           <Leds />
         </div>
         <Painel tipo={item.tipo} cor={cor} />
