@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { GitMerge } from "lucide-react";
 import { useMapa } from "@/components/MapaShell";
+import { useToast } from "@/components/Toast";
 
 type Form = {
   codigo: string;
@@ -25,6 +27,7 @@ const FORM_VAZIO: Form = {
 
 export default function CeosPanel() {
   const { ceos, postes, recarregar, sel, setSel, setPending, setMapClick } = useMapa();
+  const toast = useToast();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -122,8 +125,11 @@ export default function CeosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao salvar");
       await recarregar();
       if (j.ceo) setSel({ camada: "ceo", id: j.ceo.id });
+      toast.success(editId ? "CEO atualizada" : "CEO criada");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -139,8 +145,11 @@ export default function CeosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao excluir");
       cancelar();
       await recarregar();
+      toast.success("CEO excluída");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -152,7 +161,9 @@ export default function CeosPanel() {
     <div>
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <div>
-          <h1 className="font-semibold">CEOs</h1>
+          <h1 className="flex items-center gap-2 font-semibold">
+            <GitMerge size={16} className="text-[#a855f7]" /> CEOs
+          </h1>
           <p className="text-xs text-[var(--muted)]">{ceos.length} caixas de emenda</p>
         </div>
         <button onClick={novo} className="btn-primary px-2.5 py-1.5 text-xs">

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Boxes } from "lucide-react";
 import { useMapa } from "@/components/MapaShell";
+import { useToast } from "@/components/Toast";
 
 type Form = {
   codigo: string;
@@ -25,6 +27,7 @@ const FORM_VAZIO: Form = {
 
 export default function CtosPanel() {
   const { ctos, postes, recarregar, sel, setSel, setPending, setMapClick } = useMapa();
+  const toast = useToast();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -125,8 +128,11 @@ export default function CtosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao salvar");
       await recarregar();
       if (j.cto) setSel({ camada: "cto", id: j.cto.id });
+      toast.success(editId ? "CTO atualizada" : "CTO criada");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -142,8 +148,11 @@ export default function CtosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao excluir");
       cancelar();
       await recarregar();
+      toast.success("CTO excluída");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -156,7 +165,9 @@ export default function CtosPanel() {
     <div>
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <div>
-          <h1 className="font-semibold">CTOs</h1>
+          <h1 className="flex items-center gap-2 font-semibold">
+            <Boxes size={16} className="text-[var(--accent)]" /> CTOs
+          </h1>
           <p className="text-xs text-[var(--muted)]">
             {ctos.length} · {semCoord} sem coordenada
           </p>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RadioTower } from "lucide-react";
 import { useMapa } from "@/components/MapaShell";
+import { useToast } from "@/components/Toast";
 
 type Form = {
   codigo: string;
@@ -27,6 +29,7 @@ const FORM_VAZIO: Form = {
 
 export default function PostesPanel() {
   const { postes, recarregar, sel, setSel, setPending, setMapClick } = useMapa();
+  const toast = useToast();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -101,8 +104,11 @@ export default function PostesPanel() {
       await recarregar();
       setPending(null);
       if (j.poste) setSel({ camada: "poste", id: j.poste.id });
+      toast.success(mode === "edit" ? "Poste atualizado" : "Poste criado");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -118,8 +124,11 @@ export default function PostesPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao excluir");
       cancelar();
       await recarregar();
+      toast.success("Poste excluído");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -132,7 +141,9 @@ export default function PostesPanel() {
     <div>
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <div>
-          <h1 className="font-semibold">Postes</h1>
+          <h1 className="flex items-center gap-2 font-semibold">
+            <RadioTower size={16} className="text-[#f59e0b]" /> Postes
+          </h1>
           <p className="text-xs text-[var(--muted)]">
             {postes.length} · {alugados} alugados · {semCoord} sem coord.
           </p>

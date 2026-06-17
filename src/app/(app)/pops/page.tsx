@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useToast } from "@/components/Toast";
 import type { Pop, PopDetalhe, Rack, RackItem } from "@/lib/pop";
 
 const U_PX = 22; // altura em pixels de 1 U
@@ -53,6 +54,7 @@ export default function PopsPage() {
   const [novoRack, setNovoRack] = useState<{ nome: string; alturaU: string } | null>(null);
   const [itemForm, setItemForm] = useState<ItemForm | null>(null);
   const [erroItem, setErroItem] = useState<string | null>(null);
+  const toast = useToast();
 
   const carregarPops = useCallback(async () => {
     try {
@@ -100,6 +102,7 @@ export default function PopsPage() {
       setNovoPop({ codigo: "", nome: "", endereco: "" });
       await carregarPops();
       setSelId(j.id);
+      toast.success("POP criado");
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -124,6 +127,7 @@ export default function PopsPage() {
     });
     setNovoRack(null);
     await carregarPop(selId);
+    toast.success("Rack adicionado");
   }
 
   async function excluirRack(id: number) {
@@ -196,6 +200,7 @@ export default function PopsPage() {
     });
     setItemForm(null);
     await carregarPop(selId);
+    toast.success("Equipamento salvo");
   }
 
   async function excluirItem() {
@@ -203,6 +208,7 @@ export default function PopsPage() {
     await fetch(`/api/rack-item/${itemForm.id}`, { method: "DELETE" });
     setItemForm(null);
     await carregarPop(selId);
+    toast.success("Equipamento removido");
   }
 
   return (
@@ -528,22 +534,41 @@ function RackView({
           ))}
         </div>
 
-        {/* corpo do rack */}
+        {/* corpo do rack (gabinete) */}
         <div
           ref={bodyRef}
-          className="relative w-52 rounded-md border-2 border-[var(--border)] bg-[var(--bg)]"
-          style={{ height: altura }}
+          className="relative w-56 overflow-hidden rounded-lg border border-black/60"
+          style={{
+            height: altura,
+            background: "linear-gradient(180deg,#0c1424,#070d18)",
+            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03), var(--shadow)",
+          }}
         >
+          {/* trilhos de montagem com furos a cada U */}
+          {(["left-0", "right-0"] as const).map((lado) => (
+            <div
+              key={lado}
+              className={`pointer-events-none absolute inset-y-0 ${lado} w-3 bg-[var(--surface)]`}
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.6px)",
+                backgroundSize: `100% ${U_PX}px`,
+                backgroundPosition: `center ${U_PX / 2}px`,
+                boxShadow: "inset -1px 0 0 rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.04)",
+              }}
+            />
+          ))}
+
           {/* linhas dos U's */}
           {Array.from({ length: rack.alturaU }).map((_, i) => (
             <div
               key={i}
-              className="absolute left-0 right-0 border-b border-[var(--border)]/40"
+              className="absolute left-3 right-3 border-b border-white/[0.04]"
               style={{ top: i * U_PX, height: U_PX }}
             />
           ))}
 
-          {/* equipamentos */}
+          {/* equipamentos (entre os trilhos) */}
           {rack.itens.map((it) => {
             const arrastando = drag?.id === it.id;
             const inicio = arrastando ? drag!.inicio : it.uInicio;
@@ -556,8 +581,8 @@ function RackView({
                 onPointerDown={(e) => aoPressionar(e, it)}
                 onPointerMove={aoMover}
                 onPointerUp={() => aoSoltar(it)}
-                className={`absolute left-1 right-1 touch-none ${
-                  arrastando ? "z-10 cursor-grabbing opacity-90" : "cursor-grab"
+                className={`absolute left-3.5 right-3.5 touch-none transition-shadow ${
+                  arrastando ? "z-10 cursor-grabbing opacity-90 drop-shadow-lg" : "cursor-grab"
                 }`}
                 style={{ top: top + 1, height: height - 2 }}
                 title={`${it.tipo} ${it.modelo ?? ""} — arraste para mover`}

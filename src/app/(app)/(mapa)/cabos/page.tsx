@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Cable } from "lucide-react";
 import { useMapa } from "@/components/MapaShell";
+import { useToast } from "@/components/Toast";
 import type { Vertice } from "@/lib/cabo";
 
 type Form = {
@@ -16,6 +18,7 @@ const FORM_VAZIO: Form = { codigo: "", tipo: "", fibras: "", fabricante: "", obs
 
 export default function CabosPanel() {
   const { cabos, postes, recarregar, sel, setSel, setMapClick, setPendingLine } = useMapa();
+  const toast = useToast();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -112,8 +115,11 @@ export default function CabosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao salvar");
       await recarregar();
       if (j.cabo) setSel({ camada: "cabo", id: j.cabo.id });
+      toast.success(editId ? "Cabo atualizado" : "Cabo criado");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -129,8 +135,11 @@ export default function CabosPanel() {
       if (!j.ok) throw new Error(j.erro || "falha ao excluir");
       cancelar();
       await recarregar();
+      toast.success("Cabo excluído");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      setErro(m);
+      toast.error(m);
     } finally {
       setSalvando(false);
     }
@@ -145,7 +154,9 @@ export default function CabosPanel() {
     <div>
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <div>
-          <h1 className="font-semibold">Cabos</h1>
+          <h1 className="flex items-center gap-2 font-semibold">
+            <Cable size={16} className="text-[#38bdf8]" /> Cabos
+          </h1>
           <p className="text-xs text-[var(--muted)]">{cabos.length} cabos</p>
         </div>
         <button onClick={novo} className="btn-primary px-2.5 py-1.5 text-xs">
