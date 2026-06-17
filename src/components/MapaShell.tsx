@@ -86,6 +86,13 @@ export default function MapaShell({ children }: { children: ReactNode }) {
     clickRef.current = null;
   }, [pathname]);
 
+  // Camada do módulo ativo (fica por cima e destacada no mapa).
+  const ativa = pathname.startsWith("/ctos")
+    ? "cto"
+    : pathname.startsWith("/postes")
+      ? "poste"
+      : null;
+
   const toggleVis = (k: string) => setVis((v) => ({ ...v, [k]: !v[k] }));
 
   const camadas = [
@@ -116,6 +123,7 @@ export default function MapaShell({ children }: { children: ReactNode }) {
         <div className="min-w-0 flex-1">
           <PlantaMap
             camadas={camadas}
+            ativa={ativa}
             selecionado={sel}
             pending={pending}
             onMapClick={(lat, lng) => clickRef.current?.(lat, lng)}

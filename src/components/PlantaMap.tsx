@@ -18,6 +18,8 @@ export interface CamadaMapa {
 
 export interface MapaProps {
   camadas: CamadaMapa[];
+  /** Camada do módulo ativo — desenhada por cima e com anel de destaque. */
+  ativa?: string | null;
   selecionado?: { camada: string; id: number } | null;
   pending?: { lat: number; lng: number } | null;
   onMapClick?: (lat: number, lng: number) => void;
@@ -33,16 +35,21 @@ function ClickCapture({ onClick }: { onClick?: (lat: number, lng: number) => voi
   return null;
 }
 
-// Natal/RN — centro aproximado da operação.
 const CENTRO: [number, number] = [-5.79, -35.21];
 
 export default function PlantaMap({
   camadas,
+  ativa,
   selecionado,
   pending,
   onMapClick,
   onSelect,
 }: MapaProps) {
+  // Ordena para a camada ativa ser renderizada por último (fica por cima).
+  const ordenadas = [...camadas].sort((a, b) =>
+    a.chave === ativa ? 1 : b.chave === ativa ? -1 : 0,
+  );
+
   return (
     <MapContainer center={CENTRO} zoom={12} className="h-full w-full" scrollWheelZoom>
       <TileLayer
@@ -51,29 +58,31 @@ export default function PlantaMap({
       />
       <ClickCapture onClick={onMapClick} />
 
-      {camadas.flatMap((cam) =>
-        cam.pontos
+      {ordenadas.flatMap((cam) => {
+        const ehAtiva = cam.chave === ativa;
+        return cam.pontos
           .filter((p) => p.lat != null && p.lng != null)
           .map((p) => {
-            const ativo = selecionado?.camada === cam.chave && selecionado?.id === p.id;
+            const sel = selecionado?.camada === cam.chave && selecionado?.id === p.id;
             return (
               <CircleMarker
                 key={`${cam.chave}-${p.id}`}
                 center={[p.lat as number, p.lng as number]}
-                radius={ativo ? 9 : 7}
+                radius={sel ? 9 : ehAtiva ? 7 : 5}
                 pathOptions={{
-                  color: ativo ? "#2f6bff" : cam.cor,
-                  fillColor: ativo ? "#2f6bff" : cam.cor,
-                  fillOpacity: 0.85,
-                  weight: 2,
+                  // anel branco destaca a camada ativa quando há sobreposição
+                  color: sel ? "#2f6bff" : ehAtiva ? "#ffffff" : cam.cor,
+                  fillColor: cam.cor,
+                  fillOpacity: ehAtiva || sel ? 0.95 : 0.7,
+                  weight: ehAtiva || sel ? 2.5 : 1,
                 }}
                 eventHandlers={{ click: () => onSelect?.(cam.chave, p.id) }}
               >
                 <Tooltip>{p.codigo || "(sem código)"}</Tooltip>
               </CircleMarker>
             );
-          }),
-      )}
+          });
+      })}
 
       {pending && (
         <CircleMarker

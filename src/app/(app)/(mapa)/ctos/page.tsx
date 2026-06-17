@@ -7,7 +7,6 @@ type Form = {
   codigo: string;
   tipoSplitter: string;
   capacidade: string;
-  endereco: string;
   observacao: string;
   posteId: string;
   lat: number | null;
@@ -18,7 +17,6 @@ const FORM_VAZIO: Form = {
   codigo: "",
   tipoSplitter: "",
   capacidade: "",
-  endereco: "",
   observacao: "",
   posteId: "",
   lat: null,
@@ -33,17 +31,26 @@ export default function CtosPanel() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  // Clique no mapa posiciona a CTO em criação/edição.
+  // A CTO não é posicionada por clique em mapa vazio: ela herda a posição do
+  // poste. Garante que nenhum handler de clique vazio fique ativo nesta aba.
   useEffect(() => {
-    setMapClick((lat, lng) => {
-      setForm((f) => ({ ...f, lat, lng }));
-      setPending({ lat, lng });
-      setMode((m) => (m === "idle" ? "new" : m));
-    });
+    setMapClick(null);
     return () => setMapClick(null);
-  }, [setMapClick, setPending]);
+  }, [setMapClick]);
 
-  // Selecionar uma CTO (no mapa ou na lista) carrega para edição.
+  // Vincula um poste e herda a coordenada dele.
+  function vincularPoste(idStr: string) {
+    const p = postes.find((x) => String(x.id) === idStr);
+    setForm((f) => ({
+      ...f,
+      posteId: idStr,
+      lat: p ? p.lat : f.lat,
+      lng: p ? p.lng : f.lng,
+    }));
+    if (p) setPending(null);
+  }
+
+  // Selecionar uma CTO (mapa/lista) carrega para edição.
   useEffect(() => {
     if (sel?.camada !== "cto") return;
     const c = ctos.find((x) => x.id === sel.id);
@@ -55,7 +62,6 @@ export default function CtosPanel() {
       codigo: c.codigo,
       tipoSplitter: c.tipoSplitter ?? "",
       capacidade: c.capacidade != null ? String(c.capacidade) : "",
-      endereco: c.endereco ?? "",
       observacao: c.observacao ?? "",
       posteId: c.posteId != null ? String(c.posteId) : "",
       lat: c.lat,
@@ -63,11 +69,18 @@ export default function CtosPanel() {
     });
   }, [sel, ctos, setPending]);
 
-  // Clicar num POSTE no mapa (com o formulário aberto) vincula-o à CTO.
+  // Com o formulário aberto, clicar num POSTE no mapa vincula e posiciona.
   useEffect(() => {
     if (mode === "idle") return;
     if (sel?.camada !== "poste") return;
-    setForm((f) => ({ ...f, posteId: String(sel.id) }));
+    const p = postes.find((x) => x.id === sel.id);
+    setForm((f) => ({
+      ...f,
+      posteId: String(sel.id),
+      lat: p ? p.lat : f.lat,
+      lng: p ? p.lng : f.lng,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel, mode]);
 
   function novo() {
@@ -97,7 +110,6 @@ export default function CtosPanel() {
       codigo: form.codigo.trim(),
       tipoSplitter: form.tipoSplitter || null,
       capacidade: form.capacidade || null,
-      endereco: form.endereco || null,
       observacao: form.observacao || null,
       posteId: form.posteId || null,
       lat: form.lat,
@@ -112,7 +124,6 @@ export default function CtosPanel() {
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || "falha ao salvar");
       await recarregar();
-      setPending(null);
       if (j.cto) setSel({ camada: "cto", id: j.cto.id });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -138,6 +149,7 @@ export default function CtosPanel() {
     }
   }
 
+  const posteVinc = postes.find((p) => String(p.id) === form.posteId);
   const semCoord = ctos.filter((c) => c.lat == null).length;
 
   return (
@@ -164,7 +176,10 @@ export default function CtosPanel() {
         {mode === "idle" ? (
           <ul className="divide-y divide-[var(--border)]/60 text-sm">
             {ctos.length === 0 ? (
-              <li className="py-2 text-[var(--muted)]">Nenhuma CTO. Clique no mapa para criar.</li>
+              <li className="py-2 text-[var(--muted)]">
+                Nenhuma CTO. Clique em <strong className="text-[var(--text)]">+ Nova</strong> e
+                escolha um poste.
+              </li>
             ) : (
               ctos.map((c) => (
                 <li key={c.id}>
@@ -229,32 +244,24 @@ export default function CtosPanel() {
             </div>
 
             <div>
-              <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Poste</span>
+              <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Poste *</span>
               <select
                 value={form.posteId}
-                onChange={(e) => setForm((f) => ({ ...f, posteId: e.target.value }))}
+                onChange={(e) => vincularPoste(e.target.value)}
                 className="input"
               >
-                <option value="">— sem poste —</option>
+                <option value="">— selecione —</option>
                 {postes.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.codigo || `Poste #${p.id}`}
+                    {p.lat == null ? " (sem coord.)" : ""}
                   </option>
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-[var(--muted)]">
-                Ou clique num poste (âmbar) no mapa para vincular.
+                Ou clique num poste (âmbar) no mapa. A CTO assume a posição do poste.
               </p>
             </div>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Endereço</span>
-              <input
-                value={form.endereco}
-                onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))}
-                className="input"
-              />
-            </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Observação</span>
@@ -267,13 +274,15 @@ export default function CtosPanel() {
             </label>
 
             <div className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
-              {form.lat != null && form.lng != null ? (
-                <>Local: {form.lat.toFixed(6)}, {form.lng.toFixed(6)} — clique no mapa para mudar.</>
-              ) : (
+              {posteVinc && form.lat != null ? (
                 <>
-                  Sem coordenada. <strong className="text-[var(--text)]">Clique no mapa</strong> para
-                  posicionar.
+                  No poste <strong className="text-[var(--text)]">{posteVinc.codigo || `#${posteVinc.id}`}</strong>{" "}
+                  · {form.lat.toFixed(6)}, {form.lng?.toFixed(6)}
                 </>
+              ) : posteVinc && form.lat == null ? (
+                <>O poste selecionado ainda não tem coordenada. Posicione-o no módulo Postes.</>
+              ) : (
+                <>Selecione um poste para posicionar a CTO.</>
               )}
             </div>
 

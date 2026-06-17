@@ -3,19 +3,80 @@
 import Link from "next/link";
 import { useMapa } from "@/components/MapaShell";
 
+const COR = { cto: "#22c55e", poste: "#f59e0b" } as const;
+
+function mesmoPonto(
+  a: { lat: number | null; lng: number | null },
+  lat: number,
+  lng: number,
+): boolean {
+  return a.lat != null && a.lng != null && Math.abs(a.lat - lat) < 1e-6 && Math.abs(a.lng - lng) < 1e-6;
+}
+
 export default function PlantaView() {
-  const { ctos, postes, sel } = useMapa();
+  const { ctos, postes, sel, setSel } = useMapa();
+
   const ctoSel = sel?.camada === "cto" ? ctos.find((c) => c.id === sel.id) ?? null : null;
   const posteSel = sel?.camada === "poste" ? postes.find((p) => p.id === sel.id) ?? null : null;
+
+  const coord =
+    ctoSel && ctoSel.lat != null
+      ? { lat: ctoSel.lat, lng: ctoSel.lng as number }
+      : posteSel && posteSel.lat != null
+        ? { lat: posteSel.lat, lng: posteSel.lng as number }
+        : null;
+
+  // Tudo que existe naquele ponto (CTOs e postes co-localizados).
+  const aqui = coord
+    ? [
+        ...ctos
+          .filter((c) => mesmoPonto(c, coord.lat, coord.lng))
+          .map((c) => ({ camada: "cto", id: c.id, label: c.codigo })),
+        ...postes
+          .filter((p) => mesmoPonto(p, coord.lat, coord.lng))
+          .map((p) => ({ camada: "poste", id: p.id, label: p.codigo || "(sem código)" })),
+      ]
+    : [];
 
   return (
     <div className="p-4">
       <h1 className="text-lg font-semibold">Mapa da Planta</h1>
       <p className="mb-4 text-xs text-[var(--muted)]">
-        Visão geral da rede. Clique num elemento para ver os detalhes; use as abas CTOs/Postes para
-        editar.
+        Visão geral da rede. Clique num ponto para ver tudo que há ali.
       </p>
 
+      {aqui.length > 1 && (
+        <div className="mb-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+            Neste ponto
+          </h2>
+          <div className="space-y-1">
+            {aqui.map((e) => {
+              const ativo = sel?.camada === e.camada && sel?.id === e.id;
+              return (
+                <button
+                  key={`${e.camada}-${e.id}`}
+                  onClick={() => setSel({ camada: e.camada, id: e.id })}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
+                    ativo ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: COR[e.camada as keyof typeof COR] }}
+                  />
+                  <span className="font-medium">{e.label}</span>
+                  <span className="text-xs uppercase text-[var(--muted)]">{e.camada}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+        Detalhes
+      </h2>
       {ctoSel ? (
         <div className="card space-y-2 text-sm">
           <div className="flex items-center justify-between">
@@ -32,7 +93,6 @@ export default function PlantaView() {
                 : null
             }
           />
-          <Detalhe rotulo="Endereço" valor={ctoSel.endereco} />
           <Detalhe rotulo="Observação" valor={ctoSel.observacao} />
           <Link href="/ctos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
             Editar no módulo CTOs →
@@ -48,6 +108,12 @@ export default function PlantaView() {
           <Detalhe rotulo="Altura" valor={posteSel.alturaM != null ? `${posteSel.alturaM} m` : null} />
           <Detalhe rotulo="Propriedade" valor={posteSel.dono === "alugado" ? "Alugado" : "Próprio"} />
           <Detalhe rotulo="Concessionária" valor={posteSel.concessionaria} />
+          <Detalhe
+            rotulo="CTOs no poste"
+            valor={
+              ctos.filter((c) => c.posteId === posteSel.id).map((c) => c.codigo).join(", ") || null
+            }
+          />
           <Link href="/postes" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
             Editar no módulo Postes →
           </Link>
