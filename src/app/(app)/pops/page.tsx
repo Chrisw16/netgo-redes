@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import type { Pop, PopDetalhe, Rack, RackItem } from "@/lib/pop";
 
-const U_PX = 28; // altura em pixels de 1 U
+const U_PX = 38; // altura em pixels de 1 U
 
 const TIPOS = [
   { v: "olt", l: "OLT", c: "#2f6bff" },
@@ -701,6 +701,48 @@ function Fileira({ n }: { n: number }) {
   );
 }
 
+/** Grade de ventoinha (estilo cooler de nobreak/servidor). */
+function Ventoinha({ size = 26 }: { size?: number }) {
+  const c = 12;
+  const linhas: [number, number, number, number][] = [
+    [1, 12, 23, 12],
+    [12, 1, 12, 23],
+    [4.2, 4.2, 19.8, 19.8],
+    [4.2, 19.8, 19.8, 4.2],
+  ];
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0">
+      <circle cx={c} cy={c} r={11.5} fill="#0a0f17" stroke="rgba(255,255,255,0.14)" strokeWidth={0.8} />
+      {[9, 6.5, 4].map((r) => (
+        <circle key={r} cx={c} cy={c} r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={0.7} />
+      ))}
+      {linhas.map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.08)" strokeWidth={0.7} />
+      ))}
+      <circle cx={c} cy={c} r={1.6} fill="rgba(255,255,255,0.25)" />
+    </svg>
+  );
+}
+
+/** Tomada padrão brasileiro (2P+T). */
+function Tomada() {
+  return (
+    <span
+      className="relative inline-block rounded-[2px]"
+      style={{
+        width: 13,
+        height: 13,
+        background: "linear-gradient(180deg,#1b2330,#0a0f17)",
+        boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.10)",
+      }}
+    >
+      <span className="absolute left-[3px] top-[3.5px] h-[2px] w-[2px] rounded-full bg-black" />
+      <span className="absolute right-[3px] top-[3.5px] h-[2px] w-[2px] rounded-full bg-black" />
+      <span className="absolute bottom-[3px] left-1/2 h-[2px] w-[2px] -translate-x-1/2 rounded-full bg-black" />
+    </span>
+  );
+}
+
 /** Painel frontal por tipo de equipamento. */
 function Painel({ tipo, cor }: { tipo: string; cor: string }) {
   if (tipo === "switch") {
@@ -802,26 +844,21 @@ function Painel({ tipo, cor }: { tipo: string; cor: string }) {
   }
   if (tipo === "nobreak") {
     return (
-      <div className="flex items-center gap-2 overflow-hidden">
+      <div className="flex items-center gap-2.5 overflow-hidden">
+        <Ventoinha size={28} />
         <span
           style={{
             width: 26,
-            height: 13,
+            height: 14,
             borderRadius: 2,
             background: "linear-gradient(180deg,#0a2e3a,#06161d)",
             boxShadow: "inset 0 0 0 0.5px rgba(56,189,248,0.45), 0 0 6px rgba(56,189,248,0.25)",
           }}
         />
-        <div className="flex gap-[4px]">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <span
-              key={i}
-              className="h-3 w-3 rounded-full"
-              style={{
-                background: "radial-gradient(circle at 50% 50%, #0a0f17 0 30%, #1b2740 60%, #0a0f17 100%)",
-                boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.08)",
-              }}
-            />
+        {/* tomadas (2 fileiras) */}
+        <div className="grid grid-cols-4 gap-[3px]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Tomada key={i} />
           ))}
         </div>
       </div>
