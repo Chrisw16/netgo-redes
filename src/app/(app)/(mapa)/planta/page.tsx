@@ -24,6 +24,14 @@ export default function PlantaView() {
           </div>
           <Detalhe rotulo="Splitter" valor={ctoSel.tipoSplitter} />
           <Detalhe rotulo="Portas" valor={ctoSel.capacidade != null ? String(ctoSel.capacidade) : null} />
+          <Detalhe
+            rotulo="Poste"
+            valor={
+              ctoSel.posteId != null
+                ? postes.find((p) => p.id === ctoSel.posteId)?.codigo || `#${ctoSel.posteId}`
+                : null
+            }
+          />
           <Detalhe rotulo="Endereço" valor={ctoSel.endereco} />
           <Detalhe rotulo="Observação" valor={ctoSel.observacao} />
           <Link href="/ctos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">

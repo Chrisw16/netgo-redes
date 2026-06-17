@@ -14,6 +14,7 @@ function parseInput(body: Record<string, unknown>): CtoInput | string {
     lat: num(body.lat),
     lng: num(body.lng),
     capacidade: num(body.capacidade),
+    posteId: num(body.posteId),
     tipoSplitter: typeof body.tipoSplitter === "string" ? body.tipoSplitter : null,
     endereco: typeof body.endereco === "string" ? body.endereco : null,
     observacao: typeof body.observacao === "string" ? body.observacao : null,

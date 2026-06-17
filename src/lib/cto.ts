@@ -10,6 +10,7 @@ export interface Cto {
   capacidade: number | null;
   endereco: string | null;
   observacao: string | null;
+  posteId: number | null;
   origem: string;
   sgpSplitterId: number | null;
 }
@@ -22,6 +23,7 @@ export interface CtoInput {
   capacidade?: number | null;
   endereco?: string | null;
   observacao?: string | null;
+  posteId?: number | null;
 }
 
 interface Row {
@@ -33,15 +35,14 @@ interface Row {
   capacidade: number | null;
   endereco: string | null;
   observacao: string | null;
+  poste_id: number | null;
   origem: string;
   sgp_splitter_id: number | null;
 }
 
-const SELECT = `
-  SELECT id, codigo, tipo_splitter, capacidade, endereco, observacao, origem,
-         sgp_splitter_id,
-         ST_Y(geom)::float8 AS lat, ST_X(geom)::float8 AS lng
-  FROM cto`;
+const COLS = `
+  id, codigo, tipo_splitter, capacidade, endereco, observacao, poste_id, origem,
+  sgp_splitter_id, ST_Y(geom)::float8 AS lat, ST_X(geom)::float8 AS lng`;
 
 function toCto(r: Row): Cto {
   return {
@@ -53,32 +54,32 @@ function toCto(r: Row): Cto {
     capacidade: r.capacidade,
     endereco: r.endereco,
     observacao: r.observacao,
+    posteId: r.poste_id,
     origem: r.origem,
     sgpSplitterId: r.sgp_splitter_id,
   };
 }
 
 export async function listCtos(): Promise<Cto[]> {
-  const rows = await appQuery<Row>(`${SELECT} ORDER BY codigo`);
+  const rows = await appQuery<Row>(`SELECT ${COLS} FROM cto ORDER BY codigo`);
   return rows.map(toCto);
 }
 
 export async function getCto(id: number): Promise<Cto | null> {
-  const rows = await appQuery<Row>(`${SELECT} WHERE id = $1`, [id]);
+  const rows = await appQuery<Row>(`SELECT ${COLS} FROM cto WHERE id = $1`, [id]);
   return rows[0] ? toCto(rows[0]) : null;
 }
 
 export async function createCto(input: CtoInput): Promise<Cto> {
   const rows = await appQuery<Row>(
-    `INSERT INTO cto (codigo, geom, tipo_splitter, capacidade, endereco, observacao, origem)
+    `INSERT INTO cto (codigo, geom, tipo_splitter, capacidade, endereco, observacao, poste_id, origem)
      VALUES (
        $1,
        CASE WHEN $2::float8 IS NULL OR $3::float8 IS NULL THEN NULL
             ELSE ST_SetSRID(ST_MakePoint($3::float8, $2::float8), 4326) END,
-       $4, $5::int, $6, $7, 'manual'
+       $4, $5::int, $6, $7, $8::bigint, 'manual'
      )
-     RETURNING id, codigo, tipo_splitter, capacidade, endereco, observacao, origem,
-               sgp_splitter_id, ST_Y(geom)::float8 AS lat, ST_X(geom)::float8 AS lng`,
+     RETURNING ${COLS}`,
     [
       input.codigo,
       input.lat ?? null,
@@ -87,6 +88,7 @@ export async function createCto(input: CtoInput): Promise<Cto> {
       input.capacidade ?? null,
       input.endereco ?? null,
       input.observacao ?? null,
+      input.posteId ?? null,
     ],
   );
   return toCto(rows[0]);
@@ -101,12 +103,12 @@ export async function updateCto(id: number, input: CtoInput): Promise<Cto | null
        capacidade = $4::int,
        endereco = $5,
        observacao = $6,
-       geom = CASE WHEN $7::float8 IS NULL OR $8::float8 IS NULL THEN geom
-                   ELSE ST_SetSRID(ST_MakePoint($8::float8, $7::float8), 4326) END,
+       poste_id = $7::bigint,
+       geom = CASE WHEN $8::float8 IS NULL OR $9::float8 IS NULL THEN geom
+                   ELSE ST_SetSRID(ST_MakePoint($9::float8, $8::float8), 4326) END,
        atualizado_em = now()
      WHERE id = $1
-     RETURNING id, codigo, tipo_splitter, capacidade, endereco, observacao, origem,
-               sgp_splitter_id, ST_Y(geom)::float8 AS lat, ST_X(geom)::float8 AS lng`,
+     RETURNING ${COLS}`,
     [
       id,
       input.codigo,
@@ -114,6 +116,7 @@ export async function updateCto(id: number, input: CtoInput): Promise<Cto | null
       input.capacidade ?? null,
       input.endereco ?? null,
       input.observacao ?? null,
+      input.posteId ?? null,
       input.lat ?? null,
       input.lng ?? null,
     ],

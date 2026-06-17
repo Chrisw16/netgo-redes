@@ -9,6 +9,7 @@ type Form = {
   capacidade: string;
   endereco: string;
   observacao: string;
+  posteId: string;
   lat: number | null;
   lng: number | null;
 };
@@ -19,12 +20,13 @@ const FORM_VAZIO: Form = {
   capacidade: "",
   endereco: "",
   observacao: "",
+  posteId: "",
   lat: null,
   lng: null,
 };
 
 export default function CtosPanel() {
-  const { ctos, recarregar, sel, setSel, setPending, setMapClick } = useMapa();
+  const { ctos, postes, recarregar, sel, setSel, setPending, setMapClick } = useMapa();
   const [mode, setMode] = useState<"idle" | "new" | "edit">("idle");
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<Form>(FORM_VAZIO);
@@ -55,10 +57,18 @@ export default function CtosPanel() {
       capacidade: c.capacidade != null ? String(c.capacidade) : "",
       endereco: c.endereco ?? "",
       observacao: c.observacao ?? "",
+      posteId: c.posteId != null ? String(c.posteId) : "",
       lat: c.lat,
       lng: c.lng,
     });
   }, [sel, ctos, setPending]);
+
+  // Clicar num POSTE no mapa (com o formulário aberto) vincula-o à CTO.
+  useEffect(() => {
+    if (mode === "idle") return;
+    if (sel?.camada !== "poste") return;
+    setForm((f) => ({ ...f, posteId: String(sel.id) }));
+  }, [sel, mode]);
 
   function novo() {
     setSel(null);
@@ -89,6 +99,7 @@ export default function CtosPanel() {
       capacidade: form.capacidade || null,
       endereco: form.endereco || null,
       observacao: form.observacao || null,
+      posteId: form.posteId || null,
       lat: form.lat,
       lng: form.lng,
     };
@@ -215,6 +226,25 @@ export default function CtosPanel() {
                   placeholder="ex.: 16"
                 />
               </label>
+            </div>
+
+            <div>
+              <span className="mb-1 block text-xs font-medium text-[var(--muted)]">Poste</span>
+              <select
+                value={form.posteId}
+                onChange={(e) => setForm((f) => ({ ...f, posteId: e.target.value }))}
+                className="input"
+              >
+                <option value="">— sem poste —</option>
+                {postes.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.codigo || `Poste #${p.id}`}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-[var(--muted)]">
+                Ou clique num poste (âmbar) no mapa para vincular.
+              </p>
             </div>
 
             <label className="block">
