@@ -450,21 +450,107 @@ function RackView({
               <button
                 key={it.id}
                 onClick={() => onEditItem(it)}
-                className="absolute left-1 right-1 flex flex-col items-start justify-center overflow-hidden rounded px-2 text-left text-white shadow"
-                style={{ top: top + 1, height: height - 2, backgroundColor: corTipo(it.tipo, it.cor) }}
+                className="absolute left-1 right-1"
+                style={{ top: top + 1, height: height - 2 }}
                 title={`${it.tipo} ${it.modelo ?? ""}`}
               >
-                <span className="truncate text-xs font-semibold leading-tight">
-                  {it.modelo || it.tipo.toUpperCase()}
-                </span>
-                {height > U_PX + 6 && it.fabricante && (
-                  <span className="truncate text-[10px] opacity-80">{it.fabricante}</span>
-                )}
+                <RackEquip item={it} />
               </button>
             );
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Faceplate do equipamento — desenho que lembra o aparelho real, no tema escuro. */
+function RackEquip({ item }: { item: RackItem }) {
+  const cor = corTipo(item.tipo, item.cor);
+  const titulo = item.modelo || item.tipo.toUpperCase();
+  return (
+    <div
+      className="flex h-full w-full overflow-hidden rounded-sm border border-black/50 text-white shadow-md"
+      style={{ background: "linear-gradient(180deg,#26344b 0%,#141c2b 55%,#0e1521 100%)" }}
+    >
+      {/* faixa de identificação (cor escolhida) */}
+      <div className="w-1.5 shrink-0" style={{ backgroundColor: cor }} />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] px-1.5 py-0.5">
+        <div className="flex items-center justify-between gap-1">
+          <span className="truncate text-[10px] font-semibold leading-none">{titulo}</span>
+          <Leds />
+        </div>
+        <Painel tipo={item.tipo} cor={cor} />
+      </div>
+    </div>
+  );
+}
+
+function Leds() {
+  return (
+    <span className="flex shrink-0 items-center gap-[3px]">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px] shadow-emerald-400" />
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_4px] shadow-amber-400" />
+    </span>
+  );
+}
+
+/** Tira de "portas"/cards que muda conforme o tipo do equipamento. */
+function Painel({ tipo, cor }: { tipo: string; cor: string }) {
+  const porta = "h-2 w-2 rounded-[1px] border border-black/60 bg-[#0a1018]";
+
+  if (tipo === "olt") {
+    // line cards verticais + 2 SFP coloridos
+    return (
+      <div className="flex items-end gap-[2px] overflow-hidden">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <span key={i} className="h-3 w-[3px] rounded-[1px] bg-black/55" />
+        ))}
+        <span className="ml-1 h-2 w-2 rounded-[1px]" style={{ backgroundColor: cor }} />
+        <span className="h-2 w-2 rounded-[1px]" style={{ backgroundColor: cor }} />
+      </div>
+    );
+  }
+  if (tipo === "switch" || tipo === "patch") {
+    return (
+      <div className="flex flex-wrap gap-[2px] overflow-hidden">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <span key={i} className={porta} />
+        ))}
+      </div>
+    );
+  }
+  if (tipo === "dio") {
+    // adaptadores de fibra (círculos)
+    return (
+      <div className="flex gap-[3px] overflow-hidden">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <span key={i} className="h-2 w-2 rounded-full border border-black/60 bg-[#0a1018]" />
+        ))}
+      </div>
+    );
+  }
+  if (tipo === "servidor") {
+    return (
+      <div className="flex flex-col gap-[2px] overflow-hidden">
+        <span className="h-1.5 w-full rounded-[1px] bg-black/45" />
+        <span className="h-1.5 w-full rounded-[1px] bg-black/45" />
+      </div>
+    );
+  }
+  if (tipo === "nobreak") {
+    return (
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        <span className="h-3 w-7 rounded-[1px] border border-black/60 bg-[#0a1018]" />
+        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cor }} />
+      </div>
+    );
+  }
+  return (
+    <div className="flex gap-[3px] overflow-hidden">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <span key={i} className="h-1.5 w-1.5 rounded-full bg-white/30" />
+      ))}
     </div>
   );
 }
