@@ -89,8 +89,11 @@ usuário dá **Redeploy** no Coolify. Mensagens de commit terminam com
 
 ## 4. Banco de dados próprio (`db/schema.sql`)
 
-Aplicado via **`GET /api/migrate?token=<MIGRATE_TOKEN>`** (lê `db/schema.sql` de dentro da
-imagem e executa). É **idempotente**.
+**Aplicado AUTOMATICAMENTE no boot** do servidor: `src/instrumentation.ts` (hook `register()`
+do Next, roda 1x ao subir) chama `aplicarSchema()` (`src/lib/migrate.ts`), que lê e executa
+`db/schema.sql`. É **idempotente**, então roda a cada deploy sem risco. Ou seja: **basta dar
+Redeploy** — não precisa mais chamar `/api/migrate`. A rota `GET /api/migrate?token=<MIGRATE_TOKEN>`
+continua existindo só como **fallback manual** (forçar migração sem reiniciar).
 
 > ⚠️ GOTCHA CRÍTICO: `CREATE TABLE IF NOT EXISTS` **não adiciona colunas** a tabelas que já
 > existem. Ao incluir coluna nova num modelo já criado, adicione
