@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import type { Pop, PopDetalhe, Rack, RackItem } from "@/lib/pop";
 
-const U_PX = 22; // altura em pixels de 1 U
+const U_PX = 28; // altura em pixels de 1 U
 
 const TIPOS = [
   { v: "olt", l: "OLT", c: "#2f6bff" },
@@ -534,27 +534,31 @@ function RackView({
           ))}
         </div>
 
-        {/* corpo do rack (gabinete) */}
+        {/* corpo do rack (gabinete metálico) */}
         <div
           ref={bodyRef}
-          className="relative w-56 overflow-hidden rounded-lg border border-black/60"
+          className="relative w-64 overflow-hidden rounded-lg"
           style={{
             height: altura,
-            background: "linear-gradient(180deg,#0c1424,#070d18)",
-            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03), var(--shadow)",
+            background: "linear-gradient(180deg,#0b1220,#06090f)",
+            boxShadow:
+              "inset 0 0 0 1px rgba(255,255,255,0.05), inset 0 0 24px rgba(0,0,0,0.6), var(--shadow)",
+            border: "1px solid #000",
           }}
         >
-          {/* trilhos de montagem com furos a cada U */}
+          {/* trilhos de montagem (aço) com furos redondos a cada U */}
           {(["left-0", "right-0"] as const).map((lado) => (
             <div
               key={lado}
-              className={`pointer-events-none absolute inset-y-0 ${lado} w-3 bg-[var(--surface)]`}
+              className={`pointer-events-none absolute inset-y-0 ${lado} w-4`}
               style={{
+                backgroundColor: "#2a3450",
                 backgroundImage:
-                  "radial-gradient(circle, rgba(255,255,255,0.16) 1px, transparent 1.6px)",
-                backgroundSize: `100% ${U_PX}px`,
-                backgroundPosition: `center ${U_PX / 2}px`,
-                boxShadow: "inset -1px 0 0 rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.04)",
+                  "radial-gradient(circle at center, #05080e 0 1.7px, rgba(255,255,255,0.20) 2px 2.6px, transparent 2.8px), linear-gradient(90deg,#3a4660,#28324a 55%,#1b2336)",
+                backgroundSize: `100% ${U_PX}px, 100% 100%`,
+                backgroundPosition: `center ${U_PX / 2}px, center`,
+                backgroundRepeat: "repeat, no-repeat",
+                boxShadow: "inset -1px 0 0 rgba(0,0,0,0.5), inset 1px 0 0 rgba(255,255,255,0.08)",
               }}
             />
           ))}
@@ -563,7 +567,7 @@ function RackView({
           {Array.from({ length: rack.alturaU }).map((_, i) => (
             <div
               key={i}
-              className="absolute left-3 right-3 border-b border-white/[0.04]"
+              className="absolute left-4 right-4 border-b border-white/[0.04]"
               style={{ top: i * U_PX, height: U_PX }}
             />
           ))}
@@ -581,7 +585,7 @@ function RackView({
                 onPointerDown={(e) => aoPressionar(e, it)}
                 onPointerMove={aoMover}
                 onPointerUp={() => aoSoltar(it)}
-                className={`absolute left-3.5 right-3.5 touch-none transition-shadow ${
+                className={`absolute left-4 right-4 touch-none transition-shadow ${
                   arrastando ? "z-10 cursor-grabbing opacity-90 drop-shadow-lg" : "cursor-grab"
                 }`}
                 style={{ top: top + 1, height: height - 2 }}
@@ -597,100 +601,236 @@ function RackView({
   );
 }
 
-/** Faceplate do equipamento — desenho que lembra o aparelho real, no tema escuro. */
+/** Faceplate do equipamento — painel frontal estilo equipamento de rack real. */
 function RackEquip({ item }: { item: RackItem }) {
   const cor = corTipo(item.tipo, item.cor);
   const tipoLabel = TIPOS.find((t) => t.v === item.tipo)?.l ?? item.tipo;
   return (
     <div
-      className="flex h-full w-full overflow-hidden rounded-sm border border-black/50 text-white shadow-md"
-      style={{ background: "linear-gradient(180deg,#26344b 0%,#141c2b 55%,#0e1521 100%)" }}
+      className="relative flex h-full w-full select-none overflow-hidden rounded-[3px] text-white"
+      style={{
+        background: "linear-gradient(180deg,#333f59 0%,#222d44 12%,#161f31 58%,#0f1626 100%)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.5)",
+      }}
     >
-      {/* faixa de identificação (cor escolhida) */}
-      <div className="w-1.5 shrink-0" style={{ backgroundColor: cor }} />
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] px-1.5 py-0.5">
+      <Orelha />
+      <div className="my-1 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: cor, boxShadow: `0 0 6px ${cor}` }} />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] px-1.5">
         <div className="flex items-center justify-between gap-1">
           <span className="flex min-w-0 items-center gap-1">
             <span
-              className="shrink-0 rounded-sm bg-black/40 px-1 text-[8px] font-bold uppercase leading-[14px] tracking-wide"
-              style={{ color: cor }}
+              className="shrink-0 rounded-[2px] px-1 text-[8px] font-bold uppercase leading-[13px] tracking-wide"
+              style={{ color: "#0b0f17", backgroundColor: cor }}
             >
               {tipoLabel}
             </span>
-            <span className="truncate text-[10px] font-semibold leading-none">{item.modelo || ""}</span>
+            <span className="truncate text-[10px] font-semibold leading-none text-slate-100">
+              {item.modelo || ""}
+            </span>
           </span>
           <Leds />
         </div>
         <Painel tipo={item.tipo} cor={cor} />
       </div>
+      <Orelha direita />
     </div>
+  );
+}
+
+/** Orelha de fixação (rack ear) com 2 parafusos. */
+function Orelha({ direita }: { direita?: boolean }) {
+  return (
+    <div
+      className="flex h-full w-3.5 shrink-0 flex-col items-center justify-between py-1"
+      style={{
+        background: direita
+          ? "linear-gradient(90deg,#27324a,#3a4664)"
+          : "linear-gradient(90deg,#3a4664,#27324a)",
+        boxShadow: direita ? "inset 1px 0 0 rgba(0,0,0,0.4)" : "inset -1px 0 0 rgba(0,0,0,0.4)",
+      }}
+    >
+      <Parafuso />
+      <Parafuso />
+    </div>
+  );
+}
+function Parafuso() {
+  return (
+    <span
+      className="h-1.5 w-1.5 rounded-full"
+      style={{
+        background: "radial-gradient(circle at 35% 35%, #9fb3d2, #2a3550 75%)",
+        boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.6)",
+      }}
+    />
   );
 }
 
 function Leds() {
   return (
     <span className="flex shrink-0 items-center gap-[3px]">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px] shadow-emerald-400" />
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_4px] shadow-amber-400" />
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px] shadow-emerald-400" />
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_5px] shadow-amber-400" />
     </span>
   );
 }
 
-/** Tira de "portas"/cards que muda conforme o tipo do equipamento. */
-function Painel({ tipo, cor }: { tipo: string; cor: string }) {
-  const porta = "h-2 w-2 rounded-[1px] border border-black/60 bg-[#0a1018]";
+const PORTA: React.CSSProperties = {
+  width: 9,
+  height: 10,
+  borderRadius: 1,
+  background: "linear-gradient(180deg,#11171f,#05080d)",
+  boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.10), inset 0 -2px 1px rgba(0,0,0,0.6)",
+};
+const SFP: React.CSSProperties = {
+  width: 13,
+  height: 10,
+  borderRadius: 1,
+  background: "linear-gradient(180deg,#1b2433,#0a0f17)",
+  boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.14)",
+};
 
-  if (tipo === "olt") {
-    // line cards verticais + 2 SFP coloridos
+function Fileira({ n }: { n: number }) {
+  return (
+    <div className="flex gap-[2px]">
+      {Array.from({ length: n }).map((_, i) => (
+        <span key={i} style={PORTA} />
+      ))}
+    </div>
+  );
+}
+
+/** Painel frontal por tipo de equipamento. */
+function Painel({ tipo, cor }: { tipo: string; cor: string }) {
+  if (tipo === "switch") {
     return (
-      <div className="flex items-end gap-[2px] overflow-hidden">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <span key={i} className="h-3 w-[3px] rounded-[1px] bg-black/55" />
-        ))}
-        <span className="ml-1 h-2 w-2 rounded-[1px]" style={{ backgroundColor: cor }} />
-        <span className="h-2 w-2 rounded-[1px]" style={{ backgroundColor: cor }} />
+      <div className="flex flex-col gap-[2px] overflow-hidden">
+        <Fileira n={12} />
+        <div className="flex items-center gap-[2px]">
+          <Fileira n={12} />
+          <span className="ml-0.5" style={SFP} />
+          <span style={SFP} />
+        </div>
       </div>
     );
   }
-  if (tipo === "switch" || tipo === "patch") {
+  if (tipo === "patch") {
     return (
-      <div className="flex flex-wrap gap-[2px] overflow-hidden">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <span key={i} className={porta} />
+      <div className="flex gap-[4px] overflow-hidden">
+        {[0, 1, 2, 3].map((g) => (
+          <Fileira key={g} n={6} />
         ))}
+      </div>
+    );
+  }
+  if (tipo === "olt") {
+    return (
+      <div className="flex items-stretch gap-[3px] overflow-hidden">
+        {/* line cards */}
+        {Array.from({ length: 4 }).map((_, i) => (
+          <span
+            key={i}
+            style={{
+              width: 15,
+              borderRadius: 1,
+              background: "linear-gradient(180deg,#1c2536,#0b1019)",
+              boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.08)",
+            }}
+          />
+        ))}
+        {/* tela */}
+        <span
+          style={{
+            width: 16,
+            borderRadius: 1,
+            background: "linear-gradient(180deg,#0a2e26,#06140f)",
+            boxShadow: `inset 0 0 0 0.5px ${cor}66, 0 0 5px ${cor}55`,
+          }}
+        />
+        <div className="flex flex-col justify-center gap-[2px]">
+          <div className="flex gap-[2px]">
+            <span style={SFP} />
+            <span style={SFP} />
+          </div>
+        </div>
       </div>
     );
   }
   if (tipo === "dio") {
-    // adaptadores de fibra (círculos)
+    // adaptadores de fibra (acopladores)
     return (
       <div className="flex gap-[3px] overflow-hidden">
         {Array.from({ length: 12 }).map((_, i) => (
-          <span key={i} className="h-2 w-2 rounded-full border border-black/60 bg-[#0a1018]" />
+          <span
+            key={i}
+            className="rounded-[1px]"
+            style={{
+              width: 6,
+              height: 11,
+              background: "linear-gradient(180deg,#2b3a52,#101725)",
+              boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.12)",
+            }}
+          >
+            <span className="mx-auto mt-[3px] block h-[4px] w-[4px] rounded-full bg-cyan-300/70 shadow-[0_0_4px] shadow-cyan-300/60" />
+          </span>
         ))}
       </div>
     );
   }
   if (tipo === "servidor") {
+    // bays de disco verticais + handles
     return (
-      <div className="flex flex-col gap-[2px] overflow-hidden">
-        <span className="h-1.5 w-full rounded-[1px] bg-black/45" />
-        <span className="h-1.5 w-full rounded-[1px] bg-black/45" />
+      <div className="flex items-stretch gap-[2px] overflow-hidden">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <span
+            key={i}
+            className="relative"
+            style={{
+              width: 11,
+              borderRadius: 1,
+              background: "linear-gradient(180deg,#202a3b,#0c121d)",
+              boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.07)",
+            }}
+          >
+            <span className="absolute left-1/2 top-[3px] h-[2px] w-1.5 -translate-x-1/2 rounded-full bg-white/15" />
+            <span className="absolute bottom-[3px] left-[2px] h-[3px] w-[3px] rounded-full bg-emerald-400/80" />
+          </span>
+        ))}
       </div>
     );
   }
   if (tipo === "nobreak") {
     return (
-      <div className="flex items-center gap-1.5 overflow-hidden">
-        <span className="h-3 w-7 rounded-[1px] border border-black/60 bg-[#0a1018]" />
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cor }} />
+      <div className="flex items-center gap-2 overflow-hidden">
+        <span
+          style={{
+            width: 26,
+            height: 13,
+            borderRadius: 2,
+            background: "linear-gradient(180deg,#0a2e3a,#06161d)",
+            boxShadow: "inset 0 0 0 0.5px rgba(56,189,248,0.45), 0 0 6px rgba(56,189,248,0.25)",
+          }}
+        />
+        <div className="flex gap-[4px]">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <span
+              key={i}
+              className="h-3 w-3 rounded-full"
+              style={{
+                background: "radial-gradient(circle at 50% 50%, #0a0f17 0 30%, #1b2740 60%, #0a0f17 100%)",
+                boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.08)",
+              }}
+            />
+          ))}
+        </div>
       </div>
     );
   }
   return (
     <div className="flex gap-[3px] overflow-hidden">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <span key={i} className="h-1.5 w-1.5 rounded-full bg-white/30" />
+      {Array.from({ length: 4 }).map((_, i) => (
+        <span key={i} className="h-1.5 w-1.5 rounded-full bg-white/25" />
       ))}
     </div>
   );
