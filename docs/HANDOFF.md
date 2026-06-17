@@ -25,7 +25,7 @@ Provedor real: ~6.500 ativos, região de **Natal/RN**. ERP atual = **TSMX SGP**.
 ## 2. Stack e arquitetura
 
 - **Next.js 16.2.9** (App Router) + **React 19** + **TypeScript** + **Tailwind v4** + **lucide-react** (ícones).
-- **Design system** (dark "tech") em `src/app/globals.css`: paleta navy (`--bg/--surface/--surface-2/--elevated/--border`) + acento azul/ciano (`--accent`/`--accent-2`), fundo com glows radiais, classes utilitárias `.card`/`.card-hover`/`.input`/`.label`/`.btn`/`.btn-primary`/`.btn-danger`/`.icon-btn`/`.badge`/`.eyebrow`. Mudar o visual global = editar essas vars/classes (propaga para todos os módulos). Sidebar/Dashboard/Login já repaginados com ícones.
+- **Design system** (dark "tech") em `src/app/globals.css`: paleta navy (`--bg/--surface/--surface-2/--elevated/--border`) + acento azul/ciano (`--accent`/`--accent-2`), fundo com glows radiais, classes utilitárias `.card`/`.card-hover`/`.input`/`.label`/`.btn`/`.btn-primary`/`.btn-danger`/`.icon-btn`/`.badge`/`.eyebrow`. Mudar o visual global = editar essas vars/classes (propaga para todos os módulos). Sidebar/Dashboard/Login já repaginados com ícones. **Toasts**: `src/components/Toast.tsx` (`ToastProvider` montado em `(app)/layout.tsx`, `useToast()` → success/error/info); usado nas ações dos módulos. Cabeçalhos dos módulos com ícone. Rack (POPs) com gabinete + trilhos de montagem.
 - **PostgreSQL + PostGIS** (driver `pg`). Mapa com **Leaflet + react-leaflet 5** (OpenStreetMap).
 - **DOIS bancos** (papéis distintos):
   | Banco | Acesso | Arquivo | Conteúdo |
