@@ -609,7 +609,7 @@ function RackEquip({ item }: { item: RackItem }) {
     <div
       className="relative flex h-full w-full select-none overflow-hidden rounded-[3px] text-white"
       style={{
-        background: "linear-gradient(180deg,#333f59 0%,#222d44 12%,#161f31 58%,#0f1626 100%)",
+        background: chassiBg(item.tipo),
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.5)",
       }}
@@ -676,13 +676,6 @@ function Leds() {
   );
 }
 
-const PORTA: React.CSSProperties = {
-  width: 9,
-  height: 10,
-  borderRadius: 1,
-  background: "linear-gradient(180deg,#11171f,#05080d)",
-  boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.10), inset 0 -2px 1px rgba(0,0,0,0.6)",
-};
 const SFP: React.CSSProperties = {
   width: 13,
   height: 10,
@@ -691,11 +684,47 @@ const SFP: React.CSSProperties = {
   boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.14)",
 };
 
-function Fileira({ n }: { n: number }) {
+/** Cor do chassi por tipo (aproxima o fabricante: OLT azul, switch cinza, etc.). */
+function chassiBg(tipo: string): string {
+  switch (tipo) {
+    case "olt":
+      return "linear-gradient(180deg,#2d3c69 0%,#1f2c4f 14%,#16203a 60%,#0f1730 100%)";
+    case "switch":
+      return "linear-gradient(180deg,#404757 0%,#2c323f 14%,#1e232e 60%,#161a22 100%)";
+    case "patch":
+    case "dio":
+    case "nobreak":
+      return "linear-gradient(180deg,#262a32 0%,#191c22 14%,#101216 60%,#0a0c0f 100%)";
+    default:
+      return "linear-gradient(180deg,#333f59 0%,#222d44 12%,#161f31 58%,#0f1626 100%)";
+  }
+}
+
+/** Porta RJ45 (com a "boca" mais clara em cima). */
+function Rj45() {
   return (
-    <div className="flex gap-[2px]">
-      {Array.from({ length: n }).map((_, i) => (
-        <span key={i} style={PORTA} />
+    <span
+      style={{
+        width: 9,
+        height: 11,
+        borderRadius: 1,
+        background: "linear-gradient(180deg,#36424f 0 28%,#0b1019 30%)",
+        boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.14), inset 0 -2px 1px rgba(0,0,0,0.6)",
+      }}
+    />
+  );
+}
+
+/** Linha de portas RJ45 em grupos. */
+function LinhaRj45({ grupos, por }: { grupos: number; por: number }) {
+  return (
+    <div className="flex gap-[4px]">
+      {Array.from({ length: grupos }).map((_, g) => (
+        <div key={g} className="flex gap-[2px]">
+          {Array.from({ length: por }).map((_, i) => (
+            <Rj45 key={i} />
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -744,14 +773,17 @@ function Tomada() {
 }
 
 /** Painel frontal por tipo de equipamento. */
-function Painel({ tipo, cor }: { tipo: string; cor: string }) {
+function Painel({ tipo }: { tipo: string; cor?: string }) {
   if (tipo === "switch") {
     return (
-      <div className="flex flex-col gap-[2px] overflow-hidden">
-        <Fileira n={12} />
-        <div className="flex items-center gap-[2px]">
-          <Fileira n={12} />
-          <span className="ml-0.5" style={SFP} />
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        <div className="flex flex-col gap-[2px]">
+          <LinhaRj45 grupos={3} por={6} />
+          <LinhaRj45 grupos={3} por={6} />
+        </div>
+        {/* uplinks SFP */}
+        <div className="ml-0.5 flex flex-col gap-[2px]">
+          <span style={SFP} />
           <span style={SFP} />
         </div>
       </div>
@@ -759,63 +791,79 @@ function Painel({ tipo, cor }: { tipo: string; cor: string }) {
   }
   if (tipo === "patch") {
     return (
-      <div className="flex gap-[4px] overflow-hidden">
-        {[0, 1, 2, 3].map((g) => (
-          <Fileira key={g} n={6} />
-        ))}
+      <div className="flex flex-col gap-[2px] overflow-hidden">
+        {/* faixa de etiqueta clara */}
+        <div className="h-[3px] w-full rounded-[1px] bg-slate-200/55" />
+        <div className="flex gap-[5px]">
+          {[1, 7, 13, 19].map((ini) => (
+            <div key={ini} className="flex flex-col items-center gap-[1px]">
+              <div className="flex gap-[2px]">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Rj45 key={i} />
+                ))}
+              </div>
+              <span className="text-[6px] leading-none text-[var(--faint)]">
+                {ini}–{ini + 5}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
   if (tipo === "olt") {
     return (
-      <div className="flex items-stretch gap-[3px] overflow-hidden">
-        {/* line cards */}
-        {Array.from({ length: 4 }).map((_, i) => (
-          <span
-            key={i}
-            style={{
-              width: 15,
-              borderRadius: 1,
-              background: "linear-gradient(180deg,#1c2536,#0b1019)",
-              boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.08)",
-            }}
-          />
-        ))}
-        {/* tela */}
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        {/* LEDs de status */}
+        <div className="grid grid-cols-2 gap-[2px]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} className="h-[3px] w-[3px] rounded-full bg-emerald-400/85" />
+          ))}
+        </div>
+        {/* gaiolas PON/SFP (2 fileiras) */}
+        <div className="flex flex-col gap-[2px]">
+          {[0, 1].map((r) => (
+            <div key={r} className="flex gap-[2px]">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span key={i} style={SFP} />
+              ))}
+            </div>
+          ))}
+        </div>
+        {/* triângulo de aviso (laser) */}
         <span
           style={{
-            width: 16,
-            borderRadius: 1,
-            background: "linear-gradient(180deg,#0a2e26,#06140f)",
-            boxShadow: `inset 0 0 0 0.5px ${cor}66, 0 0 5px ${cor}55`,
+            width: 0,
+            height: 0,
+            borderLeft: "4px solid transparent",
+            borderRight: "4px solid transparent",
+            borderBottom: "8px solid #f59e0b",
           }}
         />
-        <div className="flex flex-col justify-center gap-[2px]">
-          <div className="flex gap-[2px]">
-            <span style={SFP} />
-            <span style={SFP} />
-          </div>
-        </div>
+        {/* portas GE */}
+        <LinhaRj45 grupos={1} por={4} />
       </div>
     );
   }
   if (tipo === "dio") {
-    // adaptadores de fibra (acopladores)
+    // adaptadores ópticos APC (verde), 2 fileiras
     return (
-      <div className="flex gap-[3px] overflow-hidden">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <span
-            key={i}
-            className="rounded-[1px]"
-            style={{
-              width: 6,
-              height: 11,
-              background: "linear-gradient(180deg,#2b3a52,#101725)",
-              boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.12)",
-            }}
-          >
-            <span className="mx-auto mt-[3px] block h-[4px] w-[4px] rounded-full bg-cyan-300/70 shadow-[0_0_4px] shadow-cyan-300/60" />
-          </span>
+      <div className="flex flex-col gap-[3px] overflow-hidden">
+        {[0, 1].map((r) => (
+          <div key={r} className="flex gap-[3px]">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <span
+                key={i}
+                className="rounded-[1px]"
+                style={{
+                  width: 7,
+                  height: 9,
+                  background: "linear-gradient(180deg,#34d27a,#0f7a3e)",
+                  boxShadow: "inset 0 0 0 0.5px rgba(255,255,255,0.30), 0 0 3px rgba(34,197,94,0.45)",
+                }}
+              />
+            ))}
+          </div>
         ))}
       </div>
     );
