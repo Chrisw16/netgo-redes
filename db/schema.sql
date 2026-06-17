@@ -129,3 +129,18 @@ CREATE TABLE IF NOT EXISTS fusao (
   criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS fusao_ceo_ix ON fusao (ceo_id);
+
+-- ── Migrações idempotentes ───────────────────────────────────────────────────
+-- Colunas adicionadas depois da criação inicial das tabelas. CREATE TABLE IF NOT
+-- EXISTS não altera tabelas já existentes, então garantimos as colunas aqui.
+ALTER TABLE cabo ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE cabo ADD COLUMN IF NOT EXISTS sgp_cabo_id BIGINT;
+
+ALTER TABLE ceo ADD COLUMN IF NOT EXISTS nome TEXT;
+ALTER TABLE ceo ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE ceo ADD COLUMN IF NOT EXISTS sgp_ceo_id BIGINT;
+
+ALTER TABLE cto ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE cto ADD COLUMN IF NOT EXISTS sgp_splitter_id BIGINT;
+ALTER TABLE cto ADD COLUMN IF NOT EXISTS poste_id BIGINT REFERENCES poste(id) ON DELETE SET NULL;
+ALTER TABLE cto ADD COLUMN IF NOT EXISTS ceo_id BIGINT REFERENCES ceo(id) ON DELETE SET NULL;
