@@ -144,3 +144,29 @@ ALTER TABLE cto ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE cto ADD COLUMN IF NOT EXISTS sgp_splitter_id BIGINT;
 ALTER TABLE cto ADD COLUMN IF NOT EXISTS poste_id BIGINT REFERENCES poste(id) ON DELETE SET NULL;
 ALTER TABLE cto ADD COLUMN IF NOT EXISTS ceo_id BIGINT REFERENCES ceo(id) ON DELETE SET NULL;
+
+-- ── Racks dos POPs (construção visual: racks com U's e equipamentos) ──────────
+CREATE TABLE IF NOT EXISTS rack (
+  id            BIGSERIAL PRIMARY KEY,
+  pop_id        BIGINT NOT NULL REFERENCES pop(id) ON DELETE CASCADE,
+  nome          TEXT,
+  altura_u      INT NOT NULL DEFAULT 42,        -- nº de U's do rack
+  ordem         INT NOT NULL DEFAULT 0,
+  observacao    TEXT,
+  criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS rack_pop_ix ON rack (pop_id);
+
+CREATE TABLE IF NOT EXISTS rack_item (
+  id            BIGSERIAL PRIMARY KEY,
+  rack_id       BIGINT NOT NULL REFERENCES rack(id) ON DELETE CASCADE,
+  tipo          TEXT NOT NULL DEFAULT 'outro',  -- olt | switch | dio | patch | servidor | nobreak | outro
+  modelo        TEXT,
+  fabricante    TEXT,
+  u_inicio      INT NOT NULL DEFAULT 1,         -- U onde começa (1 = base do rack)
+  u_tamanho     INT NOT NULL DEFAULT 1,         -- altura em U's
+  cor           TEXT,
+  observacao    TEXT,
+  criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS rack_item_rack_ix ON rack_item (rack_id);
