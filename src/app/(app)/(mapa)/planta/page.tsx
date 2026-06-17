@@ -14,10 +14,11 @@ function mesmoPonto(
 }
 
 export default function PlantaView() {
-  const { ctos, postes, sel, setSel } = useMapa();
+  const { ctos, postes, cabos, sel, setSel } = useMapa();
 
   const ctoSel = sel?.camada === "cto" ? ctos.find((c) => c.id === sel.id) ?? null : null;
   const posteSel = sel?.camada === "poste" ? postes.find((p) => p.id === sel.id) ?? null : null;
+  const caboSel = sel?.camada === "cabo" ? cabos.find((c) => c.id === sel.id) ?? null : null;
 
   const coord =
     ctoSel && ctoSel.lat != null
@@ -114,8 +115,35 @@ export default function PlantaView() {
               ctos.filter((c) => c.posteId === posteSel.id).map((c) => c.codigo).join(", ") || null
             }
           />
+          <Detalhe
+            rotulo="Cabos passando"
+            valor={
+              cabos
+                .filter((c) => c.posteIds.includes(posteSel.id))
+                .map((c) => c.codigo || `#${c.id}`)
+                .join(", ") || null
+            }
+          />
           <Link href="/postes" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
             Editar no módulo Postes →
+          </Link>
+        </div>
+      ) : caboSel ? (
+        <div className="card space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-semibold">{caboSel.codigo || "(sem código)"}</span>
+            <span className="rounded-md bg-[#38bdf8]/20 px-2 py-0.5 text-xs text-[#38bdf8]">Cabo</span>
+          </div>
+          <Detalhe rotulo="Tipo" valor={caboSel.tipo} />
+          <Detalhe rotulo="Fibras" valor={caboSel.fibras != null ? String(caboSel.fibras) : null} />
+          <Detalhe
+            rotulo="Comprimento"
+            valor={caboSel.comprimentoM != null ? `${Math.round(caboSel.comprimentoM)} m` : null}
+          />
+          <Detalhe rotulo="Postes na rota" valor={String(caboSel.posteIds.length)} />
+          <Detalhe rotulo="Fabricante" valor={caboSel.fabricante} />
+          <Link href="/cabos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
+            Editar no módulo Cabos →
           </Link>
         </div>
       ) : (

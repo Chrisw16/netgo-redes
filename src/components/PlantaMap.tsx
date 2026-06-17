@@ -1,6 +1,13 @@
 "use client";
 
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  CircleMarker,
+  Polyline,
+  Tooltip,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 export interface PontoMapa {
@@ -16,9 +23,22 @@ export interface CamadaMapa {
   cor: string;
 }
 
+export interface LinhaMapa {
+  id: number;
+  codigo: string | null;
+  coords: [number, number][];
+}
+
+export interface CamadaLinha {
+  chave: string;
+  cor: string;
+  itens: LinhaMapa[];
+}
+
 export interface MapaProps {
   camadas: CamadaMapa[];
-  /** Camada do módulo ativo — desenhada por cima e com anel de destaque. */
+  linhas?: CamadaLinha[];
+  /** Camada do módulo ativo — desenhada por cima e destacada. */
   ativa?: string | null;
   selecionado?: { camada: string; id: number } | null;
   pending?: { lat: number; lng: number } | null;
@@ -39,13 +59,13 @@ const CENTRO: [number, number] = [-5.79, -35.21];
 
 export default function PlantaMap({
   camadas,
+  linhas,
   ativa,
   selecionado,
   pending,
   onMapClick,
   onSelect,
 }: MapaProps) {
-  // Ordena para a camada ativa ser renderizada por último (fica por cima).
   const ordenadas = [...camadas].sort((a, b) =>
     a.chave === ativa ? 1 : b.chave === ativa ? -1 : 0,
   );
@@ -58,6 +78,31 @@ export default function PlantaMap({
       />
       <ClickCapture onClick={onMapClick} />
 
+      {/* Linhas (cabos) — desenhadas embaixo dos pontos */}
+      {(linhas ?? []).flatMap((cam) => {
+        const ehAtiva = cam.chave === ativa;
+        return cam.itens
+          .filter((l) => l.coords.length >= 2)
+          .map((l) => {
+            const sel = selecionado?.camada === cam.chave && selecionado?.id === l.id;
+            return (
+              <Polyline
+                key={`${cam.chave}-${l.id}`}
+                positions={l.coords}
+                pathOptions={{
+                  color: sel ? "#2f6bff" : cam.cor,
+                  weight: sel ? 6 : ehAtiva ? 5 : 3,
+                  opacity: 0.9,
+                }}
+                eventHandlers={{ click: () => onSelect?.(cam.chave, l.id) }}
+              >
+                <Tooltip>{l.codigo || "(sem código)"}</Tooltip>
+              </Polyline>
+            );
+          });
+      })}
+
+      {/* Pontos (CTOs, postes) */}
       {ordenadas.flatMap((cam) => {
         const ehAtiva = cam.chave === ativa;
         return cam.pontos
@@ -70,7 +115,6 @@ export default function PlantaMap({
                 center={[p.lat as number, p.lng as number]}
                 radius={sel ? 9 : ehAtiva ? 7 : 5}
                 pathOptions={{
-                  // anel branco destaca a camada ativa quando há sobreposição
                   color: sel ? "#2f6bff" : ehAtiva ? "#ffffff" : cam.cor,
                   fillColor: cam.cor,
                   fillOpacity: ehAtiva || sel ? 0.95 : 0.7,
