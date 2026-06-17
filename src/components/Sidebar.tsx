@@ -9,10 +9,11 @@ const NAV = [
   { href: "/ctos", label: "CTOs" },
   { href: "/postes", label: "Postes" },
   { href: "/cabos", label: "Cabos" },
+  { href: "/ceos", label: "CEOs" },
 ];
 
 // Itens já planejados, ainda em construção (mostrados desabilitados).
-const EM_BREVE = ["CEOs", "Fusões", "POPs", "Importação"];
+const EM_BREVE = ["Fusões", "POPs", "Importação"];
 
 export default function Sidebar({ user, isAdmin }: { user: string; isAdmin: boolean }) {
   const path = usePathname();

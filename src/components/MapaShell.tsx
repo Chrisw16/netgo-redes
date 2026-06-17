@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import type { Cto } from "@/lib/cto";
 import type { Poste } from "@/lib/poste";
 import type { Cabo } from "@/lib/cabo";
+import type { Ceo } from "@/lib/ceo";
 
 const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
   ssr: false,
@@ -27,6 +28,7 @@ const PlantaMap = dynamicImport(() => import("@/components/PlantaMap"), {
 export const COR_CTO = "#16a34a";
 export const COR_POSTE = "#f59e0b";
 export const COR_CABO = "#38bdf8";
+export const COR_CEO = "#a855f7";
 
 type Selecao = { camada: string; id: number } | null;
 type Ponto = { lat: number; lng: number } | null;
@@ -35,6 +37,7 @@ interface MapaState {
   ctos: Cto[];
   postes: Poste[];
   cabos: Cabo[];
+  ceos: Ceo[];
   recarregar: () => Promise<void>;
   vis: Record<string, boolean>;
   toggleVis: (k: string) => void;
@@ -59,7 +62,13 @@ export default function MapaShell({ children }: { children: ReactNode }) {
   const [ctos, setCtos] = useState<Cto[]>([]);
   const [postes, setPostes] = useState<Poste[]>([]);
   const [cabos, setCabos] = useState<Cabo[]>([]);
-  const [vis, setVis] = useState<Record<string, boolean>>({ cto: true, poste: true, cabo: true });
+  const [ceos, setCeos] = useState<Ceo[]>([]);
+  const [vis, setVis] = useState<Record<string, boolean>>({
+    cto: true,
+    poste: true,
+    cabo: true,
+    ceo: true,
+  });
   const [sel, setSel] = useState<Selecao>(null);
   const [pending, setPending] = useState<Ponto>(null);
   const [pendingLine, setPendingLine] = useState<[number, number][] | null>(null);
@@ -70,17 +79,20 @@ export default function MapaShell({ children }: { children: ReactNode }) {
   }, []);
 
   const recarregar = useCallback(async () => {
-    const [rc, rp, rb] = await Promise.all([
+    const [rc, rp, rb, re] = await Promise.all([
       fetch("/api/cto", { cache: "no-store" }),
       fetch("/api/poste", { cache: "no-store" }),
       fetch("/api/cabo", { cache: "no-store" }),
+      fetch("/api/ceo", { cache: "no-store" }),
     ]);
     const jc = await rc.json();
     const jp = await rp.json();
     const jb = await rb.json();
+    const je = await re.json();
     if (jc.ok) setCtos(jc.ctos as Cto[]);
     if (jp.ok) setPostes(jp.postes as Poste[]);
     if (jb.ok) setCabos(jb.cabos as Cabo[]);
+    if (je.ok) setCeos(je.ceos as Ceo[]);
   }, []);
 
   useEffect(() => {
@@ -99,25 +111,30 @@ export default function MapaShell({ children }: { children: ReactNode }) {
   // de Cabos é o poste (a rota é montada clicando postes), mesmo havendo CTO.
   const pontoAtivo = pathname.startsWith("/ctos")
     ? "cto"
-    : pathname.startsWith("/postes") || pathname.startsWith("/cabos")
-      ? "poste"
-      : null;
+    : pathname.startsWith("/ceos")
+      ? "ceo"
+      : pathname.startsWith("/postes") || pathname.startsWith("/cabos")
+        ? "poste"
+        : null;
   const linhaAtiva = pathname.startsWith("/cabos") ? "cabo" : null;
 
-  // Camadas RELEVANTES por módulo (só os elementos que se integram aparecem):
-  // CTO↔poste, cabo↔poste; poste é o hub (mostra CTO e cabo). Mapa da Planta = tudo.
+  // Camadas RELEVANTES por módulo (só os elementos que se integram aparecem).
+  // poste é o hub. Mapa da Planta = tudo.
   const relevantes = pathname.startsWith("/ctos")
     ? ["cto", "poste"]
     : pathname.startsWith("/postes")
-      ? ["poste", "cto", "cabo"]
+      ? ["poste", "cto", "cabo", "ceo"]
       : pathname.startsWith("/cabos")
-        ? ["cabo", "poste"]
-        : ["cto", "poste", "cabo"];
+        ? ["cabo", "poste", "ceo"]
+        : pathname.startsWith("/ceos")
+          ? ["ceo", "poste", "cabo"]
+          : ["cto", "poste", "cabo", "ceo"];
 
   const toggleVis = (k: string) => setVis((v) => ({ ...v, [k]: !v[k] }));
 
   const camadas = [
     ...(relevantes.includes("cto") && vis.cto ? [{ chave: "cto", pontos: ctos, cor: COR_CTO }] : []),
+    ...(relevantes.includes("ceo") && vis.ceo ? [{ chave: "ceo", pontos: ceos, cor: COR_CEO }] : []),
     ...(relevantes.includes("poste") && vis.poste
       ? [{ chave: "poste", pontos: postes, cor: COR_POSTE }]
       : []),
@@ -138,6 +155,7 @@ export default function MapaShell({ children }: { children: ReactNode }) {
     ctos,
     postes,
     cabos,
+    ceos,
     recarregar,
     vis,
     toggleVis,
@@ -161,6 +179,7 @@ export default function MapaShell({ children }: { children: ReactNode }) {
             ctos={ctos}
             postes={postes}
             cabos={cabos}
+            ceos={ceos}
           />
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </div>
@@ -189,6 +208,7 @@ function CamadasBar({
   ctos,
   postes,
   cabos,
+  ceos,
 }: {
   vis: Record<string, boolean>;
   toggleVis: (k: string) => void;
@@ -196,6 +216,7 @@ function CamadasBar({
   ctos: Cto[];
   postes: Poste[];
   cabos: Cabo[];
+  ceos: Ceo[];
 }) {
   const item = (chave: string, cor: string, label: string, n: number) =>
     relevantes.includes(chave) ? (
@@ -214,6 +235,7 @@ function CamadasBar({
     <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border)] px-3 py-2">
       <span className="mr-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">Camadas</span>
       {item("cto", COR_CTO, "CTOs", ctos.filter((c) => c.lat != null).length)}
+      {item("ceo", COR_CEO, "CEOs", ceos.filter((c) => c.lat != null).length)}
       {item("poste", COR_POSTE, "Postes", postes.filter((p) => p.lat != null).length)}
       {item("cabo", COR_CABO, "Cabos", cabos.filter((c) => c.coords.length >= 2).length)}
     </div>

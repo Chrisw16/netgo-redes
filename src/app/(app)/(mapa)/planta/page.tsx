@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMapa } from "@/components/MapaShell";
 
-const COR = { cto: "#22c55e", poste: "#f59e0b" } as const;
+const COR = { cto: "#22c55e", poste: "#f59e0b", ceo: "#a855f7" } as const;
 
 function mesmoPonto(
   a: { lat: number | null; lng: number | null },
@@ -14,25 +14,31 @@ function mesmoPonto(
 }
 
 export default function PlantaView() {
-  const { ctos, postes, cabos, sel, setSel } = useMapa();
+  const { ctos, postes, cabos, ceos, sel, setSel } = useMapa();
 
   const ctoSel = sel?.camada === "cto" ? ctos.find((c) => c.id === sel.id) ?? null : null;
   const posteSel = sel?.camada === "poste" ? postes.find((p) => p.id === sel.id) ?? null : null;
   const caboSel = sel?.camada === "cabo" ? cabos.find((c) => c.id === sel.id) ?? null : null;
+  const ceoSel = sel?.camada === "ceo" ? ceos.find((c) => c.id === sel.id) ?? null : null;
 
   const coord =
     ctoSel && ctoSel.lat != null
       ? { lat: ctoSel.lat, lng: ctoSel.lng as number }
-      : posteSel && posteSel.lat != null
-        ? { lat: posteSel.lat, lng: posteSel.lng as number }
-        : null;
+      : ceoSel && ceoSel.lat != null
+        ? { lat: ceoSel.lat, lng: ceoSel.lng as number }
+        : posteSel && posteSel.lat != null
+          ? { lat: posteSel.lat, lng: posteSel.lng as number }
+          : null;
 
-  // Tudo que existe naquele ponto (CTOs e postes co-localizados).
+  // Tudo que existe naquele ponto (co-localizados).
   const aqui = coord
     ? [
         ...ctos
           .filter((c) => mesmoPonto(c, coord.lat, coord.lng))
           .map((c) => ({ camada: "cto", id: c.id, label: c.codigo })),
+        ...ceos
+          .filter((c) => mesmoPonto(c, coord.lat, coord.lng))
+          .map((c) => ({ camada: "ceo", id: c.id, label: c.codigo || "(sem código)" })),
         ...postes
           .filter((p) => mesmoPonto(p, coord.lat, coord.lng))
           .map((p) => ({ camada: "poste", id: p.id, label: p.codigo || "(sem código)" })),
@@ -124,6 +130,15 @@ export default function PlantaView() {
                 .join(", ") || null
             }
           />
+          <Detalhe
+            rotulo="CEOs no poste"
+            valor={
+              ceos
+                .filter((c) => c.posteId === posteSel.id)
+                .map((c) => c.codigo || `#${c.id}`)
+                .join(", ") || null
+            }
+          />
           <Link href="/postes" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
             Editar no módulo Postes →
           </Link>
@@ -144,6 +159,27 @@ export default function PlantaView() {
           <Detalhe rotulo="Fabricante" valor={caboSel.fabricante} />
           <Link href="/cabos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
             Editar no módulo Cabos →
+          </Link>
+        </div>
+      ) : ceoSel ? (
+        <div className="card space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-semibold">{ceoSel.codigo || "(sem código)"}</span>
+            <span className="rounded-md bg-[#a855f7]/20 px-2 py-0.5 text-xs text-[#a855f7]">CEO</span>
+          </div>
+          <Detalhe rotulo="Tipo" valor={ceoSel.tipo} />
+          <Detalhe rotulo="Fusões" valor={ceoSel.capacidade != null ? String(ceoSel.capacidade) : null} />
+          <Detalhe
+            rotulo="Poste"
+            valor={
+              ceoSel.posteId != null
+                ? postes.find((p) => p.id === ceoSel.posteId)?.codigo || `#${ceoSel.posteId}`
+                : "ponto livre"
+            }
+          />
+          <Detalhe rotulo="Observação" valor={ceoSel.observacao} />
+          <Link href="/ceos" className="mt-1 inline-block text-xs text-[var(--accent)] hover:underline">
+            Editar no módulo CEOs →
           </Link>
         </div>
       ) : (
