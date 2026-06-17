@@ -1,21 +1,31 @@
 @import "tailwindcss";
 
-/* ── Tema NetGo Redes — dark navy + azul ───────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   NetGo Redes — Design System (dark "tech" navy + acento elétrico)
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg: #0a1322;          /* fundo navy profundo */
-  --surface: #0f1d33;     /* painéis */
-  --surface-2: #15263f;   /* hover / cards */
-  --border: #1d3252;      /* linhas */
-  --text: #e6edf6;        /* texto */
-  --muted: #8aa0bd;       /* texto secundário */
-  --accent: #2f6bff;      /* azul */
-  --accent-2: #1e4fd1;
+  --bg: #060b16; /* fundo quase-preto navy */
+  --bg-soft: #0a1120;
+  --surface: #0e1626; /* painéis */
+  --surface-2: #15203a; /* hover / cards */
+  --elevated: #1a2742; /* destaque */
+  --border: #1d2c49;
+  --border-soft: #16223c;
+  --text: #e8eefc;
+  --muted: #8398bb;
+  --faint: #5c6f90;
+  --accent: #3b82f6; /* azul */
+  --accent-2: #22d3ee; /* ciano (gradiente) */
+  --accent-deep: #1d4ed8;
+  --ring: rgba(59, 130, 246, 0.45);
+  --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-elevated: var(--elevated);
   --color-border: var(--border);
   --color-text: var(--text);
   --color-muted: var(--muted);
@@ -24,39 +34,122 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(1100px 560px at 12% -8%, rgba(59, 130, 246, 0.14), transparent 60%),
+    radial-gradient(900px 520px at 108% 4%, rgba(34, 211, 238, 0.09), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+/* Scrollbar discreta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--elevated);
+  background-clip: content-box;
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4;
+    @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 backdrop-blur-sm;
+    box-shadow: var(--shadow);
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:border-[var(--accent)]/50 hover:bg-[var(--surface-2)]/80;
+  }
+
+  .label {
+    @apply mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted)];
   }
   .input {
-    @apply w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm
-           text-[var(--text)] outline-none placeholder:text-[var(--muted)]
-           focus:border-[var(--accent)];
+    @apply w-full rounded-xl border border-[var(--border)] bg-[var(--bg-soft)] px-3 py-2 text-sm
+           text-[var(--text)] outline-none transition placeholder:text-[var(--faint)]
+           focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--ring)];
   }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--border)]
-           bg-[var(--surface-2)] px-3 py-2 text-sm font-medium text-[var(--text)]
-           transition-colors hover:border-[var(--accent)] disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)]
+           bg-[var(--surface-2)] px-3.5 py-2 text-sm font-medium text-[var(--text)]
+           transition-all duration-150 hover:border-[var(--accent)]/60 hover:bg-[var(--elevated)]
+           active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2
-           text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-2)]
-           disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold
+           text-white transition-all duration-150 active:scale-[0.98]
+           disabled:pointer-events-none disabled:opacity-50;
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    box-shadow: 0 6px 18px -8px var(--ring);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 10px 26px -8px var(--ring);
+    filter: brightness(1.08);
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/40
-           px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10
-           disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/40
+           bg-red-500/5 px-3.5 py-2 text-sm font-medium text-red-300 transition-all duration-150
+           hover:bg-red-500/15 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)]
+           bg-[var(--surface-2)] text-[var(--muted)] transition-all hover:border-[var(--accent)]/60
+           hover:text-[var(--text)] active:scale-95;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)]
+           px-2 py-0.5 text-[11px] font-medium text-[var(--muted)];
+  }
+
+  /* título de seção (sidebar/painéis) */
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--faint)];
   }
 }
 
-/* Leaflet em tema escuro: fundo do container combina com o app */
+/* Leaflet em tema escuro */
 .leaflet-container {
   background: var(--surface);
+  font-family: inherit;
+}
+.leaflet-control-zoom a {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar {
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+.leaflet-tooltip {
+  background: var(--elevated) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+.leaflet-tooltip::before {
+  display: none;
 }
